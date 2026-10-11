@@ -1,6 +1,6 @@
 // Every conformance fixture of the pinned release, played through this
 // package's API in both variants and through both hosts, and compared with
-// what the reader must have seen. 23 with Python; 20 without, the three that
+// what the reader must have seen. 24 with Python; 21 without, the three that
 // need it skipped on their `needs` — ADR *a-campaign-plays-in-a-page*, 11.
 import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest';
 import { Campaign } from '../src/index.ts';
@@ -17,7 +17,7 @@ afterAll(() => {
 });
 
 test('the release carries the fixtures', () => {
-  expect(names.length).toBe(23);
+  expect(names.length).toBe(24);
 });
 
 for (const python of [true, false]) {
@@ -38,6 +38,7 @@ for (const python of [true, false]) {
           const wanted = expected(name);
           expect(got.trace.map(canonical)).toEqual(wanted.trace.map(canonical));
           expect(canonical(got.entities)).toBe(canonical(wanted.entities));
+          expect(got.callbacks.map(canonical)).toEqual(wanted.callbacks.map(canonical));
           if (through === 'session') played.push(name);
         });
       }

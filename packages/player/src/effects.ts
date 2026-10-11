@@ -145,10 +145,58 @@ export interface Changed {
   readonly cvars?: readonly CvarSnapshot[];
 }
 
+/**
+ * What a callback was declared on, as the author's `callbacks.json` and
+ * `campaign-host-api.md` §5b spell it — `cvar.changed`, not the WIT world's
+ * `cvar-changed`.
+ */
+export type CallbackEventName =
+  | 'story.started'
+  | 'board.entered'
+  | 'soundscape.changed'
+  | 'passage.shown'
+  | 'choice.taken'
+  | 'delay.started'
+  | 'delay.elapsed'
+  | 'story.ended'
+  | 'story.failed'
+  | 'cvar.changed'
+  | 'entity.spawned'
+  | 'entity.removed'
+  | 'entity.renamed'
+  | 'entity.field.changed'
+  | 'machine.state.entered'
+  | 'node.entered'
+  | 'node.exited'
+  | 'node.failed';
+
+// A table rather than a rewrite of the dashes, so a member the world adds
+// fails the typecheck here instead of arriving spelled however it happens to.
+const CALLBACK_EVENTS: Record<session.CallbackKind, CallbackEventName> = {
+  'story-started': 'story.started',
+  'board-entered': 'board.entered',
+  'soundscape-changed': 'soundscape.changed',
+  'passage-shown': 'passage.shown',
+  'choice-taken': 'choice.taken',
+  'delay-started': 'delay.started',
+  'delay-elapsed': 'delay.elapsed',
+  'story-ended': 'story.ended',
+  'story-failed': 'story.failed',
+  'cvar-changed': 'cvar.changed',
+  'entity-spawned': 'entity.spawned',
+  'entity-removed': 'entity.removed',
+  'entity-renamed': 'entity.renamed',
+  'entity-field-changed': 'entity.field.changed',
+  'machine-state-entered': 'machine.state.entered',
+  'node-entered': 'node.entered',
+  'node-exited': 'node.exited',
+  'node-failed': 'node.failed',
+};
+
 /** A named callback the author declared — `campaign-host-api.md` §5b. */
 export interface CallbackEvent {
   readonly callback: string;
-  readonly event: session.CallbackKind;
+  readonly event: CallbackEventName;
   readonly board?: number;
   readonly node?: string;
   readonly name?: string;
@@ -328,7 +376,7 @@ function toChanged(raw: session.Changed): Changed {
 function toCallback(raw: session.CallbackEvent): CallbackEvent {
   return {
     callback: raw.callback,
-    event: raw.event,
+    event: CALLBACK_EVENTS[raw.event],
     ...optional('board', raw.board),
     ...optional('node', raw.node),
     ...optional('name', raw.name),

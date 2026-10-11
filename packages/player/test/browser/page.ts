@@ -13,7 +13,7 @@ declare global {
       name: string,
       input: string,
       python: boolean,
-    ): Promise<{ trace: string[]; entities: string; variant: string }>;
+    ): Promise<{ trace: string[]; entities: string; callbacks: string[]; variant: string }>;
     ready: boolean;
   }
 }
@@ -35,6 +35,7 @@ window.play = async (name, input, python) => {
   return {
     trace: got.trace.map(canonical),
     entities: canonical(got.entities),
+    callbacks: got.callbacks.map(canonical),
     variant: campaign.variant,
   };
 };

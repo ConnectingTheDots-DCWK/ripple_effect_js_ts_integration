@@ -27,6 +27,10 @@ package's own.
 - **The rest of the host API's readers.** `Session.guard`,
   `Session.consoleFeed` and `Player.consoleFeed`, `Campaign.asText` and
   `Campaign.describeCvarRefusal`, so every reader of §6 is spelled.
+- **A callback's `event` is the spec's name**, `cvar.changed`, as the
+  author's `callbacks.json` spells it, not the WIT world's `cvar-changed`
+  (`CallbackEventName`). Found by the fixtures' new `callbacks` list.
 - Plays every conformance fixture of the release it carries, in Node through
   both `Session` and `Player`, and in Chromium, Firefox and WebKit through a
-  Vite bundle loading each bundle over HTTP: 23 with Python, 20 without.
+  Vite bundle loading each bundle over HTTP: 24 with Python, 21 without.
+  Each fixture's named callbacks are compared as well as its trace.

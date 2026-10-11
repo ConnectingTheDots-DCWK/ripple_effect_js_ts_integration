@@ -95,7 +95,8 @@ for (const name of browsers) {
         const trace = wanted.trace.map(canonical);
         if (
           JSON.stringify(got.trace) !== JSON.stringify(trace) ||
-          got.entities !== canonical(wanted.entities)
+          got.entities !== canonical(wanted.entities) ||
+          JSON.stringify(got.callbacks) !== JSON.stringify(wanted.callbacks.map(canonical))
         ) {
           failed = true;
           console.log(`${name} ${python ? 'python' : 'no-python'} ${fixture}: the trace differs`);
