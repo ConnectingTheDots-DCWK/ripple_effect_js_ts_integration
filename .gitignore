@@ -7,4 +7,4 @@ dist/
 packages/*/generated/
 *.tgz
 ENGINE-NOTICE
-test/browser/out/
+packages/*/test/browser/out/
