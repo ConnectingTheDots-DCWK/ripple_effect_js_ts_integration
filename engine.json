@@ -1,0 +1,18 @@
+{
+  "$comment": "The engine release these bindings carry. `pnpm engine` downloads it, verifies the manifest's signature against engine-signing.pub and every digest against both the manifest and this file, and unpacks it into engine/. The digests are null until engine-v1.5.0 is published; until then `RIPPLE_ENGINE_TREE=<a ripple_effect checkout> pnpm engine` takes the components that checkout built, unverified.",
+  "engine": "1.5.0",
+  "contract": "1.5",
+  "keyId": null,
+  "urls": [
+    "https://ripplefx.app/go/engine/{tag}/{file}",
+    "https://github.com/ConnectingTheDots-DCWK/ripple_engine_releases/releases/download/{tag}/{file}"
+  ],
+  "archives": {
+    "python": { "file": "ripple-engine-1.5.0-wasm32-component.tar.gz", "sha256": null },
+    "no-python": {
+      "file": "ripple-engine-1.5.0-no-python-wasm32-component.tar.gz",
+      "sha256": null
+    },
+    "conformance": { "file": "ripple-conformance-1.5.0.tar.gz", "sha256": null }
+  }
+}

@@ -1,0 +1,10 @@
+node_modules/
+dist/
+# The engine as the pinned release delivers it, verified and unpacked by
+# `pnpm engine`, and what jco makes of it. Never committed: the components are
+# under the Runtime Licence and are published only inside the npm packages.
+/engine/
+packages/*/generated/
+*.tgz
+ENGINE-NOTICE
+test/browser/out/

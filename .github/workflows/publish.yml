@@ -1,0 +1,119 @@
+# Publishing a package to npm, with npm's trusted publishing — GitHub's OIDC
+# token, so no credential is stored anywhere — and a provenance statement
+# saying which commit and which workflow built it.
+#
+# Run it by hand (Actions → publish → Run workflow, on main), naming the
+# package. It reads the version from that package's package.json and refuses
+# one already tagged; takes the release notes from its CHANGELOG's
+# `## <version>` section and refuses a version without one; fetches the
+# engine engine.json pins — refusing an unverified one — and runs the whole
+# check; then tags `<package>-v<version>`, cuts the GitHub release, and
+# publishes. The tag carries the package's name because the two packages
+# count their PATCH apart.
+#
+# npm must know this workflow first: on npmjs.com, the package's Settings →
+# Trusted publishing → GitHub Actions, this repository, `publish.yml`. A
+# package's first version has to exist before that page does, and is
+# published by hand.
+name: publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      package:
+        description: The package to publish
+        type: choice
+        options: [player, soundscape]
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write # the tag and the release
+      id-token: write # the OIDC token npm accepts, and the provenance
+    steps:
+      - name: Refuse to run anywhere but main
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::Publish from main."
+          exit 1
+
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          # Trusted publishing needs npm 11.5.1 or newer, which Node 24 carries.
+          node-version: 24
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - name: Read the package's name and version
+        id: package
+        working-directory: packages/${{ inputs.package }}
+        run: |
+          echo "name=$(jq -r .name package.json)" >> "$GITHUB_OUTPUT"
+          echo "version=$(jq -r .version package.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Refuse a version that is already tagged
+        env:
+          TAG: ${{ inputs.package }}-v${{ steps.package.outputs.version }}
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null; then
+            echo "::error::$TAG already exists. Bump the version in packages/${{ inputs.package }}/package.json."
+            exit 1
+          fi
+
+      - name: Take the release notes from the CHANGELOG
+        env:
+          VERSION: ${{ steps.package.outputs.version }}
+        run: |
+          awk -v v="$VERSION" '
+            $0 == "## " v { f = 1; next }
+            /^## / { if (f) exit }
+            f
+          ' packages/${{ inputs.package }}/CHANGELOG.md | sed -e '/./,$!d' > "$RUNNER_TEMP/notes.md"
+          if [ ! -s "$RUNNER_TEMP/notes.md" ]; then
+            echo "::error::packages/${{ inputs.package }}/CHANGELOG.md has no '## $VERSION' section."
+            exit 1
+          fi
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm engine
+      - name: Refuse an unverified engine
+        run: |
+          if [ -e engine/UNVERIFIED ]; then
+            echo "::error::The engine was not taken from a verified release."
+            exit 1
+          fi
+      - run: pnpm check
+
+      - name: Pack, and show what is in it
+        working-directory: packages/${{ inputs.package }}
+        run: |
+          pnpm pack --out "$RUNNER_TEMP/package.tgz"
+          tar -tzf "$RUNNER_TEMP/package.tgz" | sort | tee "$RUNNER_TEMP/files.txt"
+          grep -q '^package/ENGINE-NOTICE$' "$RUNNER_TEMP/files.txt" || { echo "::error::ENGINE-NOTICE is not in the package"; exit 1; }
+
+      - name: Tag and release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NAME: ${{ steps.package.outputs.name }}
+          VERSION: ${{ steps.package.outputs.version }}
+          TAG: ${{ inputs.package }}-v${{ steps.package.outputs.version }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git tag -a "$TAG" -m "$NAME $VERSION"
+          git push origin "$TAG"
+          prerelease=()
+          case "$VERSION" in *-*) prerelease=(--prerelease) ;; esac
+          gh release create "$TAG" --verify-tag "${prerelease[@]}" \
+            --title "$NAME $VERSION" --notes-file "$RUNNER_TEMP/notes.md"
+
+      - name: Publish
+        run: npm publish "$RUNNER_TEMP/package.tgz" --provenance --access public

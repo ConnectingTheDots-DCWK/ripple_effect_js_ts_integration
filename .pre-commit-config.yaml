@@ -1,0 +1,57 @@
+# Hooks for ripple_effect_js_ts_integration.
+#
+#   pre-commit install          once, per clone
+#   pre-commit run --all-files  to sweep the whole tree
+#
+# The secret scan is TruffleHog over what is staged, and a clone needs the
+# binary: https://github.com/trufflesecurity/trufflehog/releases, checked
+# against its checksums.txt, or `brew install trufflehog`. Without it the hook
+# fails and says so rather than letting the commit through unscanned. CI's
+# `.github/workflows/secrets.yml` runs the same scan over everything pushed.
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: mixed-line-ending
+      - id: check-added-large-files
+        args: ['--maxkb=512']
+
+  - repo: local
+    hooks:
+      - id: trufflehog
+        name: secret scan
+        entry: bash tool/trufflehog/scan.sh
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      # Checked, never applied. A hook that rewrites a file under you turns one
+      # failed commit into two.
+      - id: biome
+        name: biome check
+        entry: pnpm exec biome check .
+        language: system
+        pass_filenames: false
+        types_or: [ts, javascript, json]
+
+      - id: typecheck
+        name: typecheck
+        entry: pnpm typecheck
+        language: system
+        pass_filenames: false
+        types_or: [ts, javascript]
+
+      # Needs the engine: `pnpm engine` once, and again when engine.json moves.
+      - id: test
+        name: test
+        entry: pnpm test
+        language: system
+        pass_filenames: false
+        types_or: [ts, javascript, json]

@@ -1,0 +1,51 @@
+# Lint, typecheck and the conformance suite in Node, on every push and pull
+# request — what `pnpm check` runs.
+#
+# The typecheck and the tests need the engine, which is fetched from the
+# release engine.json pins and verified (`pnpm engine`). Until that pin names
+# a published release there is nothing to fetch, and those steps say so and
+# skip rather than fail: lint still runs, and the suite runs where the
+# engine's source is, with RIPPLE_ENGINE_TREE.
+name: check
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+
+      - name: Is an engine pinned?
+        id: pin
+        run: |
+          if jq -e '.keyId != null and ([.archives[].sha256] | all(. != null))' engine.json >/dev/null; then
+            echo "pinned=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "pinned=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::engine.json pins no published release yet, so the typecheck and the tests are skipped here."
+          fi
+
+      - if: steps.pin.outputs.pinned == 'true'
+        run: pnpm engine
+      - if: steps.pin.outputs.pinned == 'true'
+        run: pnpm typecheck
+      - if: steps.pin.outputs.pinned == 'true'
+        run: pnpm test

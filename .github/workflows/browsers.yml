@@ -1,0 +1,27 @@
+# The browser pass: every conformance fixture in Chromium, Firefox and
+# WebKit, through the package as Vite bundles it, loading each bundle over
+# HTTP. By hand — before a release, and after anything that changes what jco
+# is given or what a bundler sees.
+name: browsers
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  browsers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm engine
+      - run: pnpm --filter @ripplefx/player exec playwright install --with-deps chromium firefox webkit
+      - run: pnpm --filter @ripplefx/player browsers
