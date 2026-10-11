@@ -17,6 +17,7 @@ export {
   type Ambience,
   type AudioCommand,
   type CallbackEvent,
+  type CallbackEventName,
   type Changed,
   type Choice,
   type CvarSnapshot,

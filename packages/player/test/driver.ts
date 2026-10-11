@@ -36,6 +36,8 @@ export interface Input {
 export interface Played {
   readonly trace: unknown[];
   readonly entities: Record<string, Record<string, RippleValue>>;
+  /** Every named callback fired, in order: nothing a reader sees, so not in the trace. */
+  readonly callbacks: unknown[];
 }
 
 /** What drives the story: the same verbs, whichever API is underneath. */
@@ -59,8 +61,10 @@ export function play(
   flush: () => void = () => {},
 ): Played {
   const trace: unknown[] = [];
+  const callbacks: unknown[] = [];
   const boards = campaign.manifest.boards.map((board) => board.id);
   const record = (effect: Effect) => {
+    if (effect.kind === 'callback') callbacks.push(callbackRecord(effect.event, boards));
     const event = traceEvent(effect, boards, campaign);
     if (event) trace.push(event);
   };
@@ -127,7 +131,25 @@ export function play(
   for (const entity of host.entities()) {
     entities[entity.key] = entity.values instanceof Map ? Object.fromEntries(entity.values) : {};
   }
-  return { trace, entities };
+  return { trace, entities, callbacks };
+}
+
+// FORMAT.md's record: the board by id, an index as an Int, and a null value
+// written as nothing, as the engine's own runner writes it.
+function callbackRecord(
+  fired: Extract<Effect, { kind: 'callback' }>['event'],
+  boards: string[],
+): unknown {
+  return {
+    callback: fired.callback,
+    event: fired.event,
+    ...(fired.board === undefined ? {} : { board: boards[fired.board] ?? '' }),
+    ...(fired.node === undefined ? {} : { node: fired.node }),
+    ...(fired.name === undefined ? {} : { name: fired.name }),
+    ...(fired.from === undefined || fired.from === null ? {} : { from: fired.from }),
+    ...(fired.to === undefined || fired.to === null ? {} : { to: fired.to }),
+    ...(fired.index === undefined ? {} : { index: BigInt(fired.index) }),
+  };
 }
 
 function over(turn: Turn | undefined): boolean {

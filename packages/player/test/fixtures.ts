@@ -58,6 +58,7 @@ export function expected(name: string): Played {
   const raw = readJson(join(FIXTURES, name, 'expect.json')) as {
     trace: unknown[];
     entities?: Record<string, Record<string, RippleValue>>;
+    callbacks?: unknown[];
   };
-  return { trace: raw.trace, entities: raw.entities ?? {} };
+  return { trace: raw.trace, entities: raw.entities ?? {}, callbacks: raw.callbacks ?? [] };
 }

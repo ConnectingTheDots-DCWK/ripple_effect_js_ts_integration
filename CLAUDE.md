@@ -39,7 +39,7 @@ RIPPLE_CAMPAIGNS=… pnpm --filter @ripplefx/example-player dev   # and listen
 ```
 
 The Node suite plays every conformance fixture of the pinned release through
-`Session` and through `Player`, in both variants: 23 with Python, and 20 without,
+`Session` and through `Player`, in both variants: 24 with Python, and 21 without,
 skipping 3. `test/driver.ts` is the driver, written from the release's
 `FORMAT.md` and touching no file, so the browser pass runs the same code in a
 page. **A test has to be able to fail.** The suite was seen red three ways
@@ -109,6 +109,10 @@ example: every check there passing says nothing about a seam in a loop.
 - **`--no-nodejs-compat` is needed with `--instantiation async`.** Without it
   the glue keeps an `import('node:fs/promises')` that a browser bundler trips
   on, in a branch that mode never takes.
+- **jco spells a WIT enum's members with dashes**: `cvar-changed`. A value
+  a host matches on by the spec's name is mapped back through a table, as
+  `CALLBACK_EVENTS` in `effects.ts` does. The callback event shipped spelled
+  the WIT way until the fixtures' `callbacks` list compared it.
 - **A `ComponentError` is known by its own `payload` property**, not its name
   (jco sets none) and not its class (a minifier renames it).
 - **A browser's `JSON.parse` cannot be relied on to say whether `7` was
