@@ -45,10 +45,19 @@ export {
   RippleError,
 } from './errors.js';
 export { encodePath } from './media.js';
-export { isTurn, Player, type PlayerHandlers } from './player.js';
+export {
+  type CallbackHandler,
+  isTurn,
+  Player,
+  type PlayerHandlers,
+  ReentrantVerb,
+} from './player.js';
 export {
   type Answers,
+  type GuardReport,
   type Paused,
+  type PythonFailure,
+  type PythonResult,
   type ResumeStart,
   type ScriptLimits,
   Session,

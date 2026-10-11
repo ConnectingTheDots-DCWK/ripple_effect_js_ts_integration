@@ -6,8 +6,16 @@
 // API asks a host to route a hold to its own clock, and this is that). A
 // verb while a hold is pending cancels the wait first, so a restart during a
 // pause in the story does not wake the story up again a moment later.
-import type { Effect, Turn } from './effects.js';
-import type { Answers, Session } from './session.js';
+//
+// It is also the host-side table the author's named callbacks are dispatched
+// through (`campaign-host-api.md` §5b): a handler registered under a name is
+// called where the engine placed the callback in its batch, a name nobody
+// registered is counted and nothing more, and a handler that throws is
+// reported and the batch goes on — the host's to absorb, because the verb is
+// still delivering the rest of what it led to.
+import type { CallbackEvent, Effect, Turn } from './effects.js';
+import { RippleError } from './errors.js';
+import type { Answers, PythonResult, Session } from './session.js';
 import type { SoundscapeDriver } from './soundscape.js';
 
 export interface PlayerHandlers {
@@ -15,7 +23,11 @@ export interface PlayerHandlers {
   readonly onEffect: (effect: Effect) => void;
   /**
    * An error from a verb the player made by itself — the `elapsed` after a
-   * hold. A verb the host calls throws to the host instead.
+   * hold — or thrown by a handler while a batch was being delivered: by
+   * `onEffect`, a callback handler or the sound. The batch goes on either
+   * way. Without this, a handler's error is reported to the page's own
+   * error reporting and a hold's is thrown. A verb the host calls throws to
+   * the host instead.
    */
   readonly onError?: (error: unknown) => void;
   /**
@@ -25,10 +37,32 @@ export interface PlayerHandlers {
   readonly audio?: SoundscapeDriver;
 }
 
+/** What a callback handler is given: the event, as the engine fired it. */
+export type CallbackHandler = (fired: CallbackEvent) => void;
+
+/**
+ * A verb called on a `Player` while it is delivering a batch — from inside
+ * `onEffect` or a callback handler. The rest of that batch would arrive
+ * after the new one, out of order. Schedule the verb instead, with
+ * `queueMicrotask` or `setTimeout`.
+ */
+export class ReentrantVerb extends RippleError {
+  override name = 'ReentrantVerb';
+  constructor(verb: string) {
+    super(
+      `${verb}() was called while the player was delivering a batch; schedule it with queueMicrotask instead`,
+    );
+  }
+}
+
 export class Player {
   #timer: ReturnType<typeof setTimeout> | undefined;
   #turn: Turn | undefined;
   #disposed = false;
+  #delivering = false;
+  readonly #callbacks = new Map<string, CallbackHandler>();
+  readonly #everyCallback = new Set<CallbackHandler>();
+  #misses = 0;
 
   constructor(
     readonly session: Session,
@@ -40,28 +74,66 @@ export class Player {
     return this.#turn;
   }
 
+  /**
+   * Calls `handler` whenever the callback the author named `name` fires,
+   * replacing any handler already under that name. Answers the function
+   * that removes it again.
+   *
+   * It runs inside the verb that fired it, where the engine placed it: a
+   * callback about a passage arrives before the passage does. It must not
+   * call a verb on this player; schedule one instead.
+   */
+  onCallback(name: string, handler: CallbackHandler): () => void {
+    this.#callbacks.set(name, handler);
+    return () => {
+      if (this.#callbacks.get(name) === handler) this.#callbacks.delete(name);
+    };
+  }
+
+  /** Calls `handler` for every callback that fires, registered or not. */
+  onAnyCallback(handler: CallbackHandler): () => void {
+    this.#everyCallback.add(handler);
+    return () => void this.#everyCallback.delete(handler);
+  }
+
+  /** Forgets every callback handler. The count of misses is kept. */
+  clearCallbacks(): void {
+    this.#callbacks.clear();
+    this.#everyCallback.clear();
+  }
+
+  /**
+   * How many callbacks fired with nothing registered under their name. Not
+   * a failure: the author and the host declare their halves independently,
+   * and a story plays the same with nobody listening.
+   */
+  get callbackMisses(): number {
+    return this.#misses;
+  }
+
   start(): void {
-    this.#run(() => this.session.start());
+    this.#run('start', () => this.session.start());
   }
 
   choose(index?: number): void {
-    this.#run(() => this.session.choose(index));
+    this.#run('choose', () => this.session.choose(index));
   }
 
   answer(values?: Answers): void {
-    this.#run(() => this.session.answer(values));
+    this.#run('answer', () => this.session.answer(values));
   }
 
   setLocale(locale: string): void {
-    this.#run(() => this.session.setLocale(locale));
+    this.#run('setLocale', () => this.session.setLocale(locale));
   }
 
   restart(): void {
-    this.#run(() => this.session.restart());
+    this.#run('restart', () => this.session.restart());
   }
 
   /** Puts the story down and answers its save. */
   pause(): string | undefined {
+    this.#enter('pause');
     this.#cancel();
     const paused = this.session.pause();
     this.#dispatch(paused.effects);
@@ -69,7 +141,19 @@ export class Player {
   }
 
   stop(): void {
-    this.#run(() => this.session.stop());
+    this.#run('stop', () => this.session.stop());
+  }
+
+  /**
+   * One line of Python against the live story, the way a playthrough
+   * console runs it. What it led to — a variable written, a cue played — is
+   * delivered like any verb's effects.
+   */
+  consoleFeed(code: string): PythonResult {
+    this.#enter('consoleFeed');
+    const fed = this.session.consoleFeed(code);
+    this.#dispatch(fed.effects);
+    return fed.result;
   }
 
   /** Stops waiting on any hold and delivers nothing more. */
@@ -78,20 +162,36 @@ export class Player {
     this.#disposed = true;
   }
 
-  #run(verb: () => Effect[]): void {
+  #run(name: string, verb: () => Effect[]): void {
+    this.#enter(name);
     this.#cancel();
     this.#dispatch(verb());
   }
 
+  #enter(verb: string): void {
+    if (this.#delivering) throw new ReentrantVerb(verb);
+  }
+
   #dispatch(effects: readonly Effect[]): void {
     if (this.#disposed) return;
-    for (const effect of effects) {
-      if (isTurn(effect)) this.#turn = effect;
-      if (effect.kind === 'audio') this.handlers.audio?.apply(effect.command);
-      this.handlers.onEffect(effect);
+    this.#delivering = true;
+    try {
+      for (const effect of effects) {
+        // A handler may dispose of the player; nothing more is delivered.
+        if (this.#disposed) return;
+        if (isTurn(effect)) this.#turn = effect;
+        if (effect.kind === 'audio') {
+          const command = effect.command;
+          this.#absorb(() => this.handlers.audio?.apply(command));
+        }
+        if (effect.kind === 'callback') this.#fire(effect.event);
+        this.#absorb(() => this.handlers.onEffect(effect));
+      }
+    } finally {
+      this.#delivering = false;
     }
     const last = effects.at(-1);
-    if (last?.kind === 'hold') {
+    if (last?.kind === 'hold' && !this.#disposed) {
       this.#timer = setTimeout(() => {
         this.#timer = undefined;
         try {
@@ -101,6 +201,25 @@ export class Player {
           else throw error;
         }
       }, last.ms);
+    }
+  }
+
+  #fire(fired: CallbackEvent): void {
+    const handler = this.#callbacks.get(fired.callback);
+    if (handler) this.#absorb(() => handler(fired));
+    else this.#misses++;
+    for (const every of this.#everyCallback) this.#absorb(() => every(fired));
+  }
+
+  // A handler's error is the host's bug and not the story's: it is reported,
+  // and the rest of the batch is still delivered.
+  #absorb(handler: () => void): void {
+    try {
+      handler();
+    } catch (error) {
+      if (this.handlers.onError) this.handlers.onError(error);
+      else if (typeof globalThis.reportError === 'function') globalThis.reportError(error);
+      else console.error(error);
     }
   }
 

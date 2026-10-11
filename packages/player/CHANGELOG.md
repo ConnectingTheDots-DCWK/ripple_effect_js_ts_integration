@@ -16,6 +16,17 @@ package's own.
   unresolved tracks, a voice's end and a file's length. `Player`'s `audio`
   hands it the story's sound. Pinned by `test/soundscape.test.ts` against a
   recording speaker, which was seen to fail with each duty removed.
+- **Named callbacks** by name: `Player.onCallback`, `onAnyCallback`,
+  `clearCallbacks` and `callbackMisses`, the host-side table of
+  `campaign-host-api.md` §5b. A handler runs where the engine placed the
+  callback, an unregistered name is counted rather than refused, and a
+  verb called from inside a handler throws `ReentrantVerb`.
+- **A handler's error no longer cuts a batch short.** An `onEffect`,
+  callback or sound handler that throws is reported to `onError`, or to
+  `reportError`, and the rest of the batch is still delivered (§5b rule 3).
+- **The rest of the host API's readers.** `Session.guard`,
+  `Session.consoleFeed` and `Player.consoleFeed`, `Campaign.asText` and
+  `Campaign.describeCvarRefusal`, so every reader of §6 is spelled.
 - Plays every conformance fixture of the release it carries, in Node through
   both `Session` and `Player`, and in Chromium, Firefox and WebKit through a
   Vite bundle loading each bundle over HTTP: 23 with Python, 20 without.

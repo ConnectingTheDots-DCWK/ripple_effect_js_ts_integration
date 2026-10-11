@@ -8,11 +8,14 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import {
   BundleError,
   Campaign,
+  type Effect,
   EngineTrap,
   encodePath,
   HostError,
   LoadError,
   NeedsPython,
+  Player,
+  ReentrantVerb,
   resolveLink,
   Session,
 } from '../src/index.ts';
@@ -183,5 +186,99 @@ describe('media', () => {
     expect(resolveLink(passage, 'https://elsewhere.example/a.png')).toBe(
       'https://elsewhere.example/a.png',
     );
+  });
+});
+
+// A fixture with named callbacks declared on its manifest, as the compiler
+// writes them (`campaign-bundle.md` §3): no fixture declares any.
+async function withCallbacks(...callbacks: { name: string; event: string }[]): Promise<Campaign> {
+  const files = bundleFiles('the-abacus');
+  const manifest = JSON.parse(files.get('campaign.json') as string);
+  files.set('campaign.json', JSON.stringify({ ...manifest, callbacks }));
+  return Campaign.fromFiles(files, { python: false });
+}
+
+describe('callbacks', () => {
+  test('a handler runs where the engine placed it, and an unregistered name is a miss', async () => {
+    const campaign = await withCallbacks(
+      { name: 'begun', event: 'story.started' },
+      { name: 'shown', event: 'passage.shown' },
+      { name: 'nobody', event: 'board.entered' },
+    );
+    const seen: string[] = [];
+    const player = new Player(campaign.session({ seed: 1 }), {
+      onEffect: (effect) => seen.push(effect.kind),
+    });
+    player.onCallback('shown', (fired) => seen.push(`handler:${fired.callback}`));
+    const begun = player.onCallback('begun', () => seen.push('handler:begun'));
+    begun();
+    const every: string[] = [];
+    player.onAnyCallback((fired) => every.push(fired.callback));
+    player.start();
+    // Before the passage it is about, and only the registered name.
+    expect(seen.indexOf('handler:shown')).toBeLessThan(seen.indexOf('show'));
+    expect(seen).not.toContain('handler:begun');
+    expect(every.sort()).toEqual(['begun', 'nobody', 'shown']);
+    expect(player.callbackMisses).toBe(2);
+  });
+
+  test('a handler that throws is reported, and the rest of the batch still arrives', async () => {
+    const campaign = await withCallbacks({ name: 'shown', event: 'passage.shown' });
+    const errors: unknown[] = [];
+    const kinds: string[] = [];
+    const player = new Player(campaign.session({ seed: 1 }), {
+      onEffect: (effect) => kinds.push(effect.kind),
+      onError: (error) => errors.push(error),
+    });
+    player.onCallback('shown', () => {
+      throw new Error('the game fell over');
+    });
+    player.start();
+    expect((errors[0] as Error).message).toBe('the game fell over');
+    expect(kinds.at(-1)).toBe('show');
+    expect(player.turn?.kind).toBe('show');
+  });
+
+  test('a verb from inside a handler is refused, and the batch is not cut short', async () => {
+    const campaign = await Campaign.fromFiles(bundleFiles('the-abacus'), { python: false });
+    const errors: unknown[] = [];
+    const kinds: Effect['kind'][] = [];
+    const player = new Player(campaign.session({ seed: 1 }), {
+      onEffect: (effect) => {
+        kinds.push(effect.kind);
+        if (effect.kind === 'show') player.choose(0);
+      },
+      onError: (error) => errors.push(error),
+    });
+    player.start();
+    expect(errors[0]).toBeInstanceOf(ReentrantVerb);
+    expect(kinds.filter((kind) => kind === 'show')).toHaveLength(1);
+  });
+});
+
+describe('the console and the guard', () => {
+  test('a line of Python answers its value, its output and its failure', async () => {
+    const campaign = await Campaign.fromFiles(bundleFiles('the-abacus'), { python: true });
+    const session = campaign.session({ seed: 1 });
+    session.start();
+    expect(session.consoleFeed('1 + 2').result).toEqual({ value: 3n, output: '' });
+    expect(session.consoleFeed('print("hi")').result.output).toBe('hi\n');
+    expect(session.consoleFeed('nowhere').result.error?.type).toBe('NameError');
+    expect(session.guard).toEqual({ abandoned: [], refused: 0, exhausted: false });
+  });
+
+  test('without Python the console answers unavailable rather than throwing', async () => {
+    const campaign = await Campaign.fromFiles(bundleFiles('the-abacus'), { python: false });
+    const session = campaign.session({ seed: 1 });
+    session.start();
+    expect(session.consoleFeed('1 + 2').result.error?.type).toBe('unavailable');
+  });
+
+  test('a value prints as the story prints it, and a refusal reads as the engine says it', async () => {
+    const campaign = await Campaign.fromFiles(bundleFiles('the-abacus'), { python: false });
+    expect(campaign.asText(7n)).toBe('7');
+    // A Float that happens to be whole still prints as a Float.
+    expect(campaign.asText(7)).not.toBe(campaign.asText(7n));
+    expect(campaign.describeCvarRefusal('gold', 'int', 'lots')).toContain('gold');
   });
 });

@@ -62,7 +62,11 @@ player.choose(1);
 | `campaign.session(start?)` | A `Session`: `seed`, `locale`, `board`, budgets. |
 | `Session.resume(campaign, save, start?)` | Pick up a save that `pause()` or `checkpoint()` wrote. |
 | `session.start() / choose(i) / answer(values) / elapsed() / setLocale(l) / restart() / pause() / stop()` | The verbs. Each returns `Effect[]` and runs synchronously. |
-| `new Player(session, { onEffect })` | The loop over a session: delivers every effect and waits out a `hold` for you. |
+| `new Player(session, { onEffect, onError? })` | The loop over a session: delivers every effect and waits out a `hold` for you. |
+| `player.onCallback(name, fn)`, `onAnyCallback(fn)`, `clearCallbacks()`, `callbackMisses` | The table for the author's named callbacks. |
+| `session.cvars / entities / memory / guard` | The story's state, each a snapshot as of the last verb. |
+| `session.consoleFeed(code)`, `player.consoleFeed(code)` | One line of Python against the live story, for a debugging console. |
+| `campaign.asText(value)`, `coerceCvar`, `describeCvarRefusal` | The engine's own rules for printing and checking a value, off any session. |
 | `campaign.mediaUrl(i)`, `campaign.coverUrl` | Where a picture or a sound is. |
 
 **Numbers.** Times and indices are JavaScript numbers. A story's **Int is a
@@ -73,6 +77,32 @@ they are to the engine. Maps keep their order as `Map`s.
 verb out of turn, which is a bug in the host), `ResumeError`, `NeedsPython`,
 `LoadError` and `EngineTrap`. A trap means the engine panicked: that campaign
 is unusable from then on, so load it again and resume your last save.
+
+## Named callbacks
+
+An author can publish named points in the editor (*Callbacks*): `chapterTwo`
+when a board is entered, `goldChanged` when a variable moves. A callback
+carries no code. You register the handler against its name:
+
+```ts
+player.onCallback('chapterTwo', (fired) => game.unlock('chapter-2'));
+```
+
+- **It runs where the engine placed it**, inside the verb: a callback about
+  a passage arrives before the passage does.
+- **It must not call a verb on the player.** That throws `ReentrantVerb`.
+  Schedule the verb with `queueMicrotask` instead.
+- **A name nobody registered is not an error.** The story plays the same,
+  and `callbackMisses` counts it.
+- **A handler that throws doesn't stop the story.** The error goes to
+  `onError`, or to the page's error reporting, and the rest of the batch
+  still arrives. The same holds for `onEffect` itself.
+- **A name is a published API.** It's the only thing joining the author's
+  declaration to your code, so agree the names once.
+
+The engine's rules are `campaign-host-api.md` §5b in the engine's repository.
+Every callback also reaches `onEffect` as `{ kind: 'callback', event }`, for
+a page that would rather switch than register.
 
 ## Notes for a page
 
