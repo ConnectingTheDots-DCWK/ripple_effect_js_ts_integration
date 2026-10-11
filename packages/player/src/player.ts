@@ -8,6 +8,7 @@
 // pause in the story does not wake the story up again a moment later.
 import type { Effect, Turn } from './effects.js';
 import type { Answers, Session } from './session.js';
+import type { SoundscapeDriver } from './soundscape.js';
 
 export interface PlayerHandlers {
   /** Every effect, in the order the engine produced it. */
@@ -17,6 +18,11 @@ export interface PlayerHandlers {
    * hold. A verb the host calls throws to the host instead.
    */
   readonly onError?: (error: unknown) => void;
+  /**
+   * Where the story's sound goes. Every `audio` effect is applied to it as
+   * well as handed to `onEffect`; without one, nothing is heard.
+   */
+  readonly audio?: SoundscapeDriver;
 }
 
 export class Player {
@@ -81,6 +87,7 @@ export class Player {
     if (this.#disposed) return;
     for (const effect of effects) {
       if (isTurn(effect)) this.#turn = effect;
+      if (effect.kind === 'audio') this.handlers.audio?.apply(effect.command);
       this.handlers.onEffect(effect);
     }
     const last = effects.at(-1);

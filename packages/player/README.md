@@ -47,9 +47,11 @@ player.choose(1);
   what it produces**. Pictures keep the author's own links;
   `resolveLink(passage, src)` turns one into the file's URL, so hand it to
   your renderer's image hook.
-- **It does not play sound.** The `audio` effects say what a speaker should
-  do. A Web Audio speaker, `@ripplefx/soundscape`, is coming; any other can be
-  written against the same contract.
+- **It schedules sound, and plays none.** `SoundscapeDriver` drives the
+  engine's scheduler and hands each voice to a `Speaker`: give a `Player` one
+  as `audio` and the story's sound follows the story.
+  [`@ripplefx/soundscape`](../soundscape) is the Web Audio speaker; any other
+  is written against [`docs/speaker.md`](../../docs/speaker.md).
 
 ## The API in one screen
 

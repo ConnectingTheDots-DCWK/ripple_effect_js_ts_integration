@@ -1,0 +1,126 @@
+/* The house's dark ground and its one accent, transcribed rather than
+   imported: the example depends on nothing but the packages it shows. */
+:root {
+  --page: #0d0f13;
+  --card: #14171c;
+  --line: #262b33;
+  --ink: #e6e8ec;
+  --muted: #9aa1ad;
+  --accent: #a8b1fa;
+  color-scheme: dark;
+  font-family: system-ui, sans-serif;
+  background: var(--page);
+  color: var(--ink);
+}
+body {
+  margin: 0;
+}
+header {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid var(--line);
+}
+.brand {
+  font-weight: 600;
+  margin-right: auto;
+}
+.brand span {
+  color: var(--accent);
+}
+select,
+button {
+  font: inherit;
+  color: var(--ink);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.35rem 0.75rem;
+}
+button {
+  cursor: pointer;
+}
+button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+main {
+  max-width: 46rem;
+  margin: 2rem auto;
+  padding: 0 1.25rem;
+  line-height: 1.6;
+}
+.prose img {
+  display: block;
+  max-width: 100%;
+  max-height: 320px;
+  margin: 1rem auto;
+  border-radius: 12px;
+}
+.prose table {
+  border-collapse: collapse;
+}
+.prose td,
+.prose th {
+  border: 1px solid var(--line);
+  padding: 0.25rem 0.75rem;
+}
+.cover {
+  width: 100%;
+  max-height: 360px;
+  object-fit: cover;
+  border-radius: 16px;
+}
+.choices {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+}
+.choices button {
+  text-align: left;
+  padding: 0.75rem 1rem;
+}
+.choices kbd {
+  color: var(--muted);
+  margin-right: 0.75rem;
+}
+.primary {
+  background: var(--accent);
+  color: #14171c;
+  border: none;
+  font-weight: 600;
+  padding: 0.6rem 1.4rem;
+}
+.note {
+  color: var(--muted);
+}
+.hold {
+  height: 3px;
+  background: var(--line);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 1rem;
+}
+.hold div {
+  height: 100%;
+  background: var(--accent);
+  width: 0;
+}
+form label {
+  display: grid;
+  gap: 0.25rem;
+  margin-bottom: 0.75rem;
+}
+form input,
+form textarea {
+  font: inherit;
+  color: var(--ink);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.4rem 0.6rem;
+}

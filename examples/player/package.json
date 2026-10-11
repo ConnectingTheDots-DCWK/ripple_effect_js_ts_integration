@@ -1,0 +1,20 @@
+{
+  "name": "@ripplefx/example-player",
+  "private": true,
+  "type": "module",
+  "description": "A campaign played in a page, sound and pictures included: the packages as a page uses them, over any compiled bundle on disk.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@ripplefx/player": "workspace:*",
+    "@ripplefx/soundscape": "workspace:*",
+    "dompurify": "3.4.16",
+    "marked": "18.1.0"
+  },
+  "devDependencies": {
+    "vite": "8.3.4"
+  }
+}

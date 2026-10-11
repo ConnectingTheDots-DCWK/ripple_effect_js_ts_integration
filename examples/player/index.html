@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ripple Effect — a campaign in a page</title>
+    <link rel="stylesheet" href="./src/style.css" />
+  </head>
+  <body>
+    <header>
+      <span class="brand">ripple<span>_effect</span></span>
+      <select id="campaign" aria-label="Campaign"></select>
+      <select id="locale" aria-label="Language" hidden></select>
+      <button id="mute" type="button" hidden>Mute</button>
+      <button id="restart" type="button" hidden>Restart</button>
+    </header>
+    <main id="stage"></main>
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>

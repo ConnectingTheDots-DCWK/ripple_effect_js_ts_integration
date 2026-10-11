@@ -25,3 +25,4 @@ jobs:
       - run: pnpm engine
       - run: pnpm --filter @ripplefx/player exec playwright install --with-deps chromium firefox webkit
       - run: pnpm --filter @ripplefx/player browsers
+      - run: pnpm --filter @ripplefx/soundscape browsers
