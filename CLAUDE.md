@@ -69,6 +69,18 @@ example: every check there passing says nothing about a seam in a loop.
   absent `needs` means none. **Below 15 it means "cannot say", and the
   interpreter is loaded**: the conformance fixtures are formats 2–6, and three
   of them run scripts without saying so.
+- **A callback's handler table is the `Player`'s, host-side**, as
+  `campaign-host-api.md` §5b puts it: the engine emits a name, and the
+  lookup, the miss count and the absorbing of a throwing handler are here.
+  It is the JS spelling of the designed `ripple_session_on_callback`. A
+  handler runs in place rather than queued, so §5b rule 4 holds for it: a
+  callback about a passage arrives before the passage. That is also why a
+  verb from inside any handler throws `ReentrantVerb`: the rest of the
+  batch would otherwise arrive after the new one.
+- **A handler's error never cuts a batch short.** `onEffect`, a callback
+  handler or the sound throwing goes to `onError` (or `reportError`), and
+  delivery goes on. The Dart binding doesn't do this yet; the spec asks for
+  it.
 - **Ints are `bigint`, Floats are `number`**, in both directions. A plain
   object is accepted as a map when writing, and a `Map` is what comes back.
 

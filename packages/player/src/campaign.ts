@@ -214,6 +214,16 @@ export class Campaign {
     });
   }
 
+  /** A value as the story prints it — runtime §6.1, the text a snippet shows. */
+  asText(value: RippleValue): string {
+    return this.engine.call((root) => root.values.asText(toArena(value)));
+  }
+
+  /** The sentence the engine refuses writing `value` to a variable of `type` with. */
+  describeCvarRefusal(name: string, type: string, value: RippleValue): string {
+    return this.engine.call((root) => root.bundle.describeCvarRefusal(name, type, toArena(value)));
+  }
+
   /** A session on this campaign, not yet started. */
   session(options: SessionStart = {}): Session {
     return Session.create(this, options);

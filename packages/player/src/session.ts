@@ -8,6 +8,7 @@
 // not write one.
 
 import type { BundleFailure as BundleFailureRaw } from '../generated/no-python/interfaces/ripple-engine-bundle.js';
+import type * as python from '../generated/no-python/interfaces/ripple-engine-python.js';
 import type * as wit from '../generated/no-python/interfaces/ripple-engine-session.js';
 import type { Campaign } from './campaign.js';
 import {
@@ -30,7 +31,7 @@ import {
   ResumeError,
   resumeFailure,
 } from './errors.js';
-import { type RippleValue, toArena } from './values.js';
+import { fromArena, type RippleValue, toArena } from './values.js';
 
 /** How long a script may run, how much it may hold, how deep it may recurse. */
 export interface ScriptLimits {
@@ -82,6 +83,41 @@ export interface Paused {
 export type Answers =
   | ReadonlyMap<string, RippleValue>
   | Readonly<Record<string, RippleValue | Readonly<Record<string, RippleValue>>>>;
+
+/**
+ * What the script guard has given up on this playthrough (`campaign-runtime.md`
+ * §8.4): the scripts stopped at the deadline, the runs refused, and whether
+ * no script will be started again.
+ */
+export interface GuardReport {
+  /** The names the stopped scripts ran under, sorted, repeats kept. */
+  readonly abandoned: readonly string[];
+  /** How many runs were never started. */
+  readonly refused: number;
+  readonly exhausted: boolean;
+}
+
+/** Why a script stopped. */
+export interface PythonFailure {
+  /**
+   * The Python exception's class — `NameError`, `SyntaxError` — or one of
+   * the engine's labels: `timeout`, `refused`, `closed`, `host-error`,
+   * `unavailable` (an engine without Python).
+   */
+  readonly type: string;
+  readonly message: string;
+  readonly line?: number;
+  readonly traceback?: string;
+}
+
+/** What a line of Python answered. */
+export interface PythonResult {
+  /** The last expression's value, or `null`. */
+  readonly value: RippleValue;
+  /** Everything it printed. */
+  readonly output: string;
+  readonly error?: PythonFailure;
+}
 
 const DEFAULTS = { stepBudget: 1 << 20, silentJumpLimit: 64, loopLimit: 512 } as const;
 
@@ -246,6 +282,29 @@ export class Session {
     return this.#call((raw) => raw.cvars().map(toCvar));
   }
 
+  /** What the script guard has given up on so far. */
+  get guard(): GuardReport {
+    return this.#call((raw) => {
+      const report = raw.guard();
+      return {
+        abandoned: report.abandoned,
+        refused: report.refused,
+        exhausted: report.exhausted,
+      };
+    });
+  }
+
+  /**
+   * One line of Python against the live story: its entities, its variables,
+   * its sounds. What it led to comes back with the answer, to be delivered
+   * like any verb's effects. Without Python the answer is an `unavailable`
+   * failure, not an exception.
+   */
+  consoleFeed(code: string): { result: PythonResult; effects: Effect[] } {
+    const fed = this.#call((raw) => raw.consoleFeed(code));
+    return { result: toPythonResult(fed.result), effects: toEffects(fed.effects, this.campaign) };
+  }
+
   /** Whether this session's engine can run the campaign's scripts. */
   get pythonAvailable(): boolean {
     return this.#call((raw) => raw.pythonAvailable());
@@ -304,6 +363,24 @@ function options(campaign: Campaign, given: SessionOptions): wit.SessionOptions 
     untranslated: given.untranslated ?? 'report',
     trace: given.trace ?? false,
     tracePayloads: given.tracePayloads ?? false,
+  };
+}
+
+function toPythonResult(raw: python.PythonResult): PythonResult {
+  const error = raw.error;
+  return {
+    value: fromArena(raw.value),
+    output: raw.output,
+    ...(error === undefined
+      ? {}
+      : {
+          error: {
+            type: error.kind.tag === 'python' ? error.kind.val : error.kind.tag,
+            message: error.message,
+            ...(error.line === undefined ? {} : { line: error.line }),
+            ...(error.traceback === undefined ? {} : { traceback: error.traceback }),
+          },
+        }),
   };
 }
 
