@@ -12,7 +12,9 @@ Neither is repeated here.
 | | |
 | --- | --- |
 | `packages/player` | `@ripplefx/player`: `Campaign`, `Session`, `Player`, the effects, the values. Mandatory. |
-| `packages/soundscape` | `@ripplefx/soundscape`: the Web Audio speaker. Optional, deferred, not yet written. |
+| `packages/soundscape` | `@ripplefx/soundscape`: the Web Audio speaker, plain MIT because it carries no engine. Optional: `docs/speaker.md` is the contract another speaker implements. |
+| `examples/player` | A campaign in a page, the packages used as a page uses them, over any folder of compiled bundles (`RIPPLE_CAMPAIGNS`). The listening pass, and the demo site's starting point. |
+| `docs/speaker.md` | The public speaker contract, transcribed from the engine's `host-audio-system.md` §9. |
 | `engine.json` | The pin: the engine version, and the digests of both component archives and of the conformance fixtures. |
 | `engine-signing.pub` | The key the manifest's signature is checked against, a copy of `packages/ripple_native/native/engine-signing.pub` there. |
 | `scripts/engine.ts` | `pnpm engine`: download, verify, unpack into `engine/`. |
@@ -30,8 +32,10 @@ made, and writes `engine/UNVERIFIED` to say so.
 ## Verifying a change
 
 ```sh
-pnpm check                                   # biome, typecheck, the Node suites
-pnpm --filter @ripplefx/player browsers      # Chromium, Firefox, WebKit via Vite
+pnpm check                                       # biome, typecheck, the Node suites
+pnpm --filter @ripplefx/player browsers          # every fixture in Chromium, Firefox, WebKit
+pnpm --filter @ripplefx/soundscape browsers      # real voices in the same three
+RIPPLE_CAMPAIGNS=… pnpm --filter @ripplefx/example-player dev   # and listen
 ```
 
 The Node suite plays every conformance fixture of the pinned release through
@@ -41,6 +45,13 @@ skipping 3. `test/driver.ts` is the driver, written from the release's
 page. **A test has to be able to fail.** The suite was seen red three ways
 before it was trusted: a passage's title in place of its text (88 failures),
 a hold one millisecond long (6), an Int as a JavaScript number (14).
+
+**The soundscape driver is tested against a speaker that writes down what
+it is told**, on a clock that is a number (`test/soundscape.test.ts`). It was
+seen red three ways: no latency added to a late voice, no wrap inside a loop,
+gains before a voice was ready dropped. The speaker itself is tested only in
+browsers, which is the only place Web Audio exists, and **heard** in the
+example: every check there passing says nothing about a seam in a loop.
 
 ## The decisions
 
@@ -61,6 +72,20 @@ a hold one millisecond long (6), an Int as a JavaScript number (14).
 - **Ints are `bigint`, Floats are `number`**, in both directions. A plain
   object is accepted as a map when writing, and a `Map` is what comes back.
 
+- **The driver is the host's half of the scheduler, and a speaker is only
+  the sound.** `SoundscapeDriver`, in the player, does every duty
+  `host-audio-system.md` §9 gives a host, ported from the editor's
+  `SoundscapeMixer`. That is the timer, a late voice's `from`, a loop's wrap,
+  pending gains, unresolved tracks and routing a voice's end and length
+  back. A `Speaker` opens a file and obeys. A new duty goes in the driver,
+  or every speaker has to learn it.
+- **A gain is the editor's level, and amplitude is its cube.** The editor
+  writes a gain to mpv's volume, whose curve is cubic. The engine's spec
+  does not say so yet, and `docs/speaker.md` does.
+- **A track streams, a cue is a buffer.** Decoding Elsenmar's music beds
+  would take about 0.75 GB, while a cue that starts late is the one lateness
+  anyone hears.
+
 ## Traps
 
 - **jco's glue carries its own core-module loader**, as `new URL(`./${name}`,
@@ -80,6 +105,18 @@ a hold one millisecond long (6), an Int as a JavaScript number (14).
 - **`node scripts/x.ts` cannot import `src/`**, whose specifiers are `.js` as
   the TypeScript build wants. A script under plain Node imports only files
   that import nothing from `src/`, which is why `test/canonical.ts` exists.
+- **WebKitGTK stalls a media element routed into Web Audio before it
+  plays**: it sits at time 0, silently, for ever. It also never fires
+  `ended` for one that is routed. So `TrackVoice` routes in `play()`'s
+  resolution, muted until then, and watches for the file's end as well as
+  listening for it. Chromium and Firefox needed neither. Real Safari is
+  unproven on this until someone plays the example on a Mac and an iPhone.
+- **The scheduler opens a `looping` track as a fresh voice per pass.** Only
+  a gapless `auto` bed with a known clip end is one looping voice. A test of
+  the loop arithmetic needs that shape, not the fixture's own.
+- **A handover waits for the fade-out.** Elsenmar's gates soundscape fades
+  over five seconds before tavern starts. A check that moves on every half
+  second never hears tavern at all, which looks like a bug and is the spec.
 - **`generated/` is under the Runtime Licence and is never committed.** It is
   built from the verified release and shipped only inside a package, beside
   `ENGINE-NOTICE`.

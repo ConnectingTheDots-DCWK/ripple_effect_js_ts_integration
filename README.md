@@ -6,7 +6,8 @@ or in Node.
 | Package | What it is |
 | --- | --- |
 | [`@ripplefx/player`](packages/player) | **The campaign player**: the engine, as a WebAssembly component, and the TypeScript API over it. |
-| `@ripplefx/soundscape` | A Web Audio speaker for a campaign's soundscapes. Optional, because a page may bring its own speaker. *Coming.* |
+| [`@ripplefx/soundscape`](packages/soundscape) | The Web Audio speaker for a campaign's soundscapes. Optional: a page may bring its own speaker, written against [`docs/speaker.md`](docs/speaker.md). |
+| [`examples/player`](examples/player) | A campaign in a page, pictures and sound included, over any folder of compiled bundles. |
 
 The engine is built and released on its own, as `engine-v<version>` in
 [`ripple_engine_releases`](https://github.com/ConnectingTheDots-DCWK/ripple_engine_releases).

@@ -1,0 +1,49 @@
+{
+  "name": "@ripplefx/soundscape",
+  "version": "1.5.0",
+  "description": "Play a Ripple Effect campaign's soundscapes in a browser, with Web Audio: the speaker for @ripplefx/player.",
+  "type": "module",
+  "license": "MIT",
+  "homepage": "https://github.com/ConnectingTheDots-DCWK/ripple_effect_js_ts_integration/tree/main/packages/soundscape#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ConnectingTheDots-DCWK/ripple_effect_js_ts_integration.git",
+    "directory": "packages/soundscape"
+  },
+  "bugs": "https://github.com/ConnectingTheDots-DCWK/ripple_effect_js_ts_integration/issues",
+  "keywords": [
+    "ripple-effect",
+    "interactive-fiction",
+    "web-audio",
+    "soundscape"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md",
+    "CHANGELOG.md"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "browsers": "node test/browser/run.ts",
+    "prepack": "pnpm build"
+  },
+  "peerDependencies": {
+    "@ripplefx/player": "1.5.x"
+  },
+  "devDependencies": {
+    "@ripplefx/player": "workspace:*",
+    "playwright": "1.63.0",
+    "vite": "8.3.4"
+  }
+}

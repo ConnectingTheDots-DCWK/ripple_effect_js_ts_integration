@@ -55,4 +55,6 @@ export {
   type SessionOptions,
   type SessionStart,
 } from './session.js';
+export { SoundscapeDriver, type SoundscapeOptions } from './soundscape.js';
+export type { Speaker, Voice, VoicePlay, VoiceRole } from './speaker.js';
 export { asRecord, type RippleValue } from './values.js';

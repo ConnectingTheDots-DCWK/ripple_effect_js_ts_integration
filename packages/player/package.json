@@ -40,7 +40,7 @@
   "scripts": {
     "generate": "node scripts/transpile.ts",
     "build": "pnpm generate && tsc -p tsconfig.build.json",
-    "typecheck": "pnpm generate && tsc -p tsconfig.json",
+    "typecheck": "pnpm generate && tsc -p tsconfig.json && tsc -p tsconfig.build.json",
     "test": "pnpm generate && vitest run",
     "prepack": "pnpm build",
     "browsers": "pnpm build && node test/browser/run.ts"

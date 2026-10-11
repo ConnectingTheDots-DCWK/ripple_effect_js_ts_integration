@@ -1,5 +1,6 @@
 packages:
   - packages/*
+  - examples/*
 
 # esbuild is Vite's, and vitest runs on Vite: an ordinary native build that is
 # genuinely needed, so it is allowed rather than left to prompt.
