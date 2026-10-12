@@ -30,7 +30,7 @@ This package only makes the sounds:
   take most of a gigabyte.
 - **A cue is decoded** once, cached, and started from its buffer, so a sound
   effect is never late.
-- **Every gain goes through Web Audio**, on the editor's cubic scale. It
+- **Every gain goes through Web Audio**, on the engine's cubic gain scale. It
   never uses `HTMLMediaElement.volume`, which iOS ignores.
 
 `audio.setMuted(true)` mutes, `audio.pause()` holds everything (a hidden tab,

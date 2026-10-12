@@ -17,10 +17,11 @@ export interface VoicePlay {
   /** Where to stop, or the file's end when absent. */
   readonly to?: number;
   /**
-   * How loud, from 0 to 1, on the editor's scale: the level mpv's volume
-   * control is set to, whose curve is cubic. A speaker writing amplitude
-   * writes `gain ** 3`, or a soundscape mixes louder in its quiet parts than
-   * the author heard it.
+   * How loud, from 0 to 1, on the engine's gain scale (`host-audio-system.md`
+   * §9): a level whose curve is cubic, as mpv's volume control is, which is
+   * what the author heard it through. A speaker writing amplitude writes
+   * `gain ** 3`, or a soundscape mixes louder in its quiet parts than the
+   * author heard it.
    */
   readonly gain: number;
   /** Playback speed, 1 being as recorded. */

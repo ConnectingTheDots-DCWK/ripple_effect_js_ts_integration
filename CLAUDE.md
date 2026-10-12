@@ -92,8 +92,8 @@ example: every check there passing says nothing about a seam in a loop.
   back. A `Speaker` opens a file and obeys. A new duty goes in the driver,
   or every speaker has to learn it.
 - **A gain is the editor's level, and amplitude is its cube.** The editor
-  writes a gain to mpv's volume, whose curve is cubic. The engine's spec
-  does not say so yet, and `docs/speaker.md` does.
+  writes a gain to mpv's volume, whose curve is cubic. The engine's
+  `host-audio-system.md` §9 says so, and `docs/speaker.md` repeats it.
 - **A track streams, a cue is a buffer.** Decoding Elsenmar's music beds
   would take about 0.75 GB, while a cue that starts late is the one lateness
   anyone hears.
