@@ -42,8 +42,21 @@ export interface ScriptLimits {
 
 /** The engine's budgets and policies; each defaults to the engine's own. */
 export interface SessionOptions {
+  /**
+   * How many node turns one board may take before the run is called a
+   * runaway and the story fails, rather than hang the page. The engine's is
+   * 1 048 576.
+   */
   readonly stepBudget?: number;
+  /**
+   * How many boards may hand over in a row without a word of story before
+   * the story fails. The engine's is 64; zero fails the first such jump.
+   */
   readonly silentJumpLimit?: number;
+  /**
+   * How often one loop node may go round in one board run before the story
+   * fails. The engine's is 512; **zero is no ceiling**.
+   */
   readonly loopLimit?: number;
   readonly scriptLimits?: ScriptLimits;
   /**
@@ -63,13 +76,21 @@ export interface SessionStart extends SessionOptions {
   readonly entryNode?: string;
   /** The language to begin in; the one the story was written in otherwise. */
   readonly locale?: string;
-  /** What the dice are seeded with. The one setting a host should always choose. */
+  /**
+   * What the dice are seeded with. The one setting a host should always
+   * choose: left out it is zero, and every reader rolls the same dice.
+   */
   readonly seed?: number | bigint;
-  /** The digest a save was made against, when starting where one left off. */
+  /**
+   * A label stamped on every save this session writes — a hash of the
+   * bundle, say, so a host can tell its own saves apart. The engine carries
+   * it and never compares it (`campaign-host-api.md` §8).
+   */
   readonly digest?: string;
 }
 
 export interface ResumeStart extends SessionOptions {
+  /** As `SessionStart.seed`: zero when left out. */
   readonly seed?: number | bigint;
 }
 
@@ -166,12 +187,19 @@ export class Session {
     return this.#verb((raw) => raw.start());
   }
 
-  /** Takes the choice at `index` among those offered; with none, the story goes on by itself. */
+  /**
+   * Takes the choice at `index` among those offered. With none, the reader
+   * leaves: the passage flows nowhere and the story ends there
+   * (`campaign-host-api.md` §4, rule 2).
+   */
   choose(index?: number): Effect[] {
     return this.#verb((raw) => raw.choose(index));
   }
 
-  /** Answers the prompt showing. Values go to the engine exactly as given. */
+  /**
+   * Answers the prompt showing. Values go to the engine exactly as given.
+   * With none, the reader leaves, as with `choose()`.
+   */
   answer(values?: Answers): Effect[] {
     const fields =
       values === undefined
@@ -198,7 +226,12 @@ export class Session {
     return this.#verb((raw) => raw.restart());
   }
 
-  /** Puts the story down, answering a save to resume from. */
+  /**
+   * Puts the story down and ends this session, answering a save to pick up
+   * with `Session.resume` — when the story is on a passage or a prompt.
+   * Anywhere else nothing stops, and there is no save and no effect. Not
+   * `SoundscapeDriver.pause`, which only holds the sound.
+   */
   pause(): Paused {
     const paused = this.#call((raw) => raw.pause());
     return {
@@ -212,14 +245,19 @@ export class Session {
     return this.#verb((raw) => raw.stop());
   }
 
-  /** A save of where the story is, without putting it down. */
+  /**
+   * A save of where the story is, without putting it down — absent unless
+   * the story is on a passage or a prompt.
+   */
   checkpoint(): string | undefined {
     return this.#call((raw) => raw.checkpoint());
   }
 
   /**
    * Writes a console variable. `refused` carries the engine's sentence when
-   * the value does not fit the type; `unknown` when there is no such variable.
+   * the value does not fit the type — English, for showing and never for
+   * parsing; `unknown` when there is no such variable. The effects are the
+   * host's to deliver: a `Player` never sees them.
    */
   writeCvar(
     name: string,

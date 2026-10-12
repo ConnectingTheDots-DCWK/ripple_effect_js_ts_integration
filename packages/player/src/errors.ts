@@ -31,7 +31,12 @@ export class BundleError extends RippleError {
   }
 }
 
-/** A verb the story was not waiting for, or a choice it does not offer. */
+/**
+ * Why a verb was refused. `wrong-turn`, `no-such-choice`, `nothing-asked` and
+ * `stopped` are a host's bugs; `choice-spent` (a choice drawn as unavailable,
+ * pressed anyway) and `unknown-locale` (a language the campaign was not
+ * written in) are conditions a host meets in use, and handles.
+ */
 export type HostFailure =
   | {
       readonly kind: 'wrong-turn';
@@ -44,7 +49,11 @@ export type HostFailure =
   | { readonly kind: 'nothing-asked' }
   | { readonly kind: 'unknown-locale'; readonly locale: string };
 
-/** The host called a verb out of turn — a bug in the host, not the story. */
+/**
+ * The session refused a verb, and nothing moved: the story is where it was.
+ * `failure.kind` says why, and which refusals are a host's bugs. The message
+ * is English, for a log, and never for parsing.
+ */
 export class HostError extends RippleError {
   override name = 'HostError';
   constructor(readonly failure: HostFailure) {

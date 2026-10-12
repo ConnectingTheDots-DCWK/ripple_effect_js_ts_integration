@@ -46,7 +46,7 @@ interface Voice {
 interface VoicePlay {
   from: number;      // ms into the file
   to?: number;       // ms into the file; the file's end when absent
-  gain: number;      // 0–1, on the editor's scale (below)
+  gain: number;      // 0–1, on the engine's gain scale (below)
   rate: number;      // 1 is as recorded
   looping: boolean;
   loopFrom: number;  // ms: where each turn of a loop comes round to
@@ -82,8 +82,9 @@ interface VoicePlay {
   again. The driver pauses every voice together.
 - **`stop`** ends the voice for good and lets its resources go.
 
-**The gain scale is the editor's.** The editor writes a gain to mpv's
-volume control, whose curve is cubic, so a speaker writing amplitude writes
+**The gain scale is cubic** (`host-audio-system.md` §9 in the engine's
+repository). The editor writes a gain to mpv's volume control, whose curve
+is cubic, so a speaker writing amplitude writes
 **`gain ** 3`**: half the gain is an eighth of the amplitude. A speaker that
 writes the gain as amplitude mixes every soundscape louder in its quiet parts
 than its author heard it.

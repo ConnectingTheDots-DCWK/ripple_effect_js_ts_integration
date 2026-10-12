@@ -35,9 +35,10 @@ export interface WebAudioSpeakerOptions {
 }
 
 /**
- * A gain on the editor's scale as an amplitude. The editor writes a gain to
- * mpv's volume control, whose curve is cubic, so this does the same: half
- * the gain is an eighth of the amplitude, as the author heard it.
+ * A gain on the engine's scale (`host-audio-system.md` §9) as an amplitude.
+ * The scale is cubic — the editor writes a gain to mpv's volume control,
+ * whose curve is — so this does the same: half the gain is an eighth of the
+ * amplitude, as the author heard it.
  */
 export function amplitude(gain: number): number {
   const level = Math.min(1, Math.max(0, Number.isFinite(gain) ? gain : 0));

@@ -4,7 +4,9 @@
 // object tagged on `kind`, with its fields beside it, so a host's `switch`
 // over `effect.kind` is checked for exhaustiveness and reads like the host
 // API (`campaign-host-api.md` §4a). Times and indices are numbers; a story's
-// values are `RippleValue`s; a picture or a sound comes with its URL.
+// values are `RippleValue`s; a picture or a sound comes with its URL. The
+// one exception is a `trace` effect's event, which is the engine's own
+// `RunEvent` as jco spells it — a debugging view, passed through unmapped.
 import type * as bundle from '../generated/no-python/interfaces/ripple-engine-bundle.js';
 import type * as campaign from '../generated/no-python/interfaces/ripple-engine-campaign.js';
 import type * as session from '../generated/no-python/interfaces/ripple-engine-session.js';
@@ -16,14 +18,24 @@ export type Effect =
   | { readonly kind: 'ask'; readonly prompt: Prompt }
   | { readonly kind: 'hold'; readonly ms: number }
   | { readonly kind: 'ended'; readonly title?: string; readonly ranOut: boolean }
+  /** The story stopped on an error. `message` is the engine's English, for showing and never for parsing. */
   | { readonly kind: 'failed'; readonly message: string; readonly node?: string }
   | { readonly kind: 'stopped' }
+  /** The story moved to another board: `board` indexes `campaign.manifest.boards`, not its catalog id. */
   | { readonly kind: 'jumped'; readonly board: number; readonly node?: string }
   | { readonly kind: 'ambience'; readonly ambience: Ambience | null }
   | { readonly kind: 'audio'; readonly command: AudioCommand }
   | ({ readonly kind: 'changed' } & Changed)
   | { readonly kind: 'callback'; readonly event: CallbackEvent }
-  | { readonly kind: 'trace'; readonly event: session.RunEvent };
+  /** Only with `trace` on. The event keeps the engine's `{ tag, val }` shape, kebab-case tags and all. */
+  | { readonly kind: 'trace'; readonly event: RunEvent };
+
+/** One step of the run trace, as the engine's world spells it. */
+export type RunEvent = session.RunEvent;
+/** How a track of a soundscape plays: `auto`, `looping` or `once`, as the world spells it. */
+export type TrackMode = bundle.TrackMode;
+/** A callback's kind as the WIT world spells it (`cvar-changed`); `CallbackEventName` is the dotted one. */
+export type CallbackKind = session.CallbackKind;
 
 /** The effects that say where the story now is — always the last of a batch. */
 export type Turn = Extract<
@@ -47,8 +59,9 @@ export interface Passage {
   readonly snippets: readonly { readonly code: string; readonly isInline: boolean }[];
   /**
    * Every link in the prose that names a file of the campaign, to where that
-   * file is. The prose keeps the author's own links; `resolveLink` rewrites
-   * one through this.
+   * file is — a URL, where the engine itself answers a media index. The
+   * prose keeps the author's own links; `resolveLink` rewrites one through
+   * this.
    */
   readonly media: ReadonlyMap<string, URL>;
   /** The same links, to the media index each names. */
@@ -78,17 +91,22 @@ export interface Ambience {
   readonly node: string;
 }
 
+/** One clip on a soundscape's timeline. Every time is in milliseconds. */
 export interface Track {
   readonly media: number;
   readonly lane: number;
+  /** Where on the timeline the clip begins, in ms. */
   readonly start: number;
+  /** Where in the file it begins and ends, in ms. */
   readonly clipStart: number;
   readonly clipEnd?: number;
   readonly volume: number;
   readonly speed: number;
+  /** The clip's own fades, in ms. */
   readonly fadeIn: number;
   readonly fadeOut: number;
-  readonly mode: bundle.TrackMode;
+  readonly mode: TrackMode;
+  /** For `auto` only: the silence between one play ending and the next, in ms; zero is a gapless bed. */
   readonly interval: number;
 }
 
@@ -193,7 +211,13 @@ const CALLBACK_EVENTS: Record<session.CallbackKind, CallbackEventName> = {
   'node-failed': 'node.failed',
 };
 
-/** A named callback the author declared — `campaign-host-api.md` §5b. */
+/**
+ * A named callback the author declared — `campaign-host-api.md` §5b.
+ * `callback` is the author's name for it, the key a handler is registered
+ * under; `event` is what it was declared on:
+ *
+ *     player.onCallback('goldChanged', (fired) => fired.event); // 'cvar.changed'
+ */
 export interface CallbackEvent {
   readonly callback: string;
   readonly event: CallbackEventName;
