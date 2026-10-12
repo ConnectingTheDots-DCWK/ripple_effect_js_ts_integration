@@ -1,12 +1,13 @@
-/* The house's dark ground and its one accent, transcribed rather than
-   imported: the example depends on nothing but the packages it shows. */
+/* The house's dark ground and its accent, which since 1.5 is the ink:
+   transcribed rather than imported, because the example depends on nothing
+   but the packages it shows. */
 :root {
   --page: #0d0f13;
   --card: #14171c;
   --line: #262b33;
   --ink: #e6e8ec;
   --muted: #9aa1ad;
-  --accent: #a8b1fa;
+  --accent: #e8eaef;
   color-scheme: dark;
   font-family: system-ui, sans-serif;
   background: var(--page);
