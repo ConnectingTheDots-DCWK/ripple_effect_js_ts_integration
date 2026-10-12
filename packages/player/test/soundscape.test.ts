@@ -8,6 +8,7 @@ import { engineSoundscapes, toSoundscape } from '../src/effects.ts';
 import {
   Campaign,
   Player,
+  RippleError,
   SoundscapeDriver,
   type Speaker,
   type Voice,
@@ -262,6 +263,17 @@ describe('the soundscape driver', () => {
     expect(speaker.voices.map((voice) => [voice.url, voice.role])).toEqual([
       ['/media/sfx/door.ogg', 'cue'],
     ]);
+  });
+
+  test('a soundscape that is a copy of the one handed out is refused, not played as silence', async () => {
+    const campaign = await choir();
+    const driver = driverFor(campaign);
+    const copy = structuredClone(campaign.soundscape(TAVERN));
+    expect(() => driver.apply({ kind: 'play', soundscape: copy, fadeInMs: 0 })).toThrow(
+      RippleError,
+    );
+    await settle();
+    expect(speaker.voices).toHaveLength(0);
   });
 
   test("a Player hands the story's sound to its driver", async () => {

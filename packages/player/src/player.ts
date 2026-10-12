@@ -25,9 +25,10 @@ export interface PlayerHandlers {
    * An error from a verb the player made by itself — the `elapsed` after a
    * hold — or thrown by a handler while a batch was being delivered: by
    * `onEffect`, a callback handler or the sound. The batch goes on either
-   * way. Without this, a handler's error is reported to the page's own
-   * error reporting and a hold's is thrown. A verb the host calls throws to
-   * the host instead.
+   * way. **Without this, a failure after a hold is an uncaught exception**,
+   * thrown from a timer where nothing of the host's can catch it; a
+   * handler's error goes to the page's own error reporting. A verb the host
+   * calls throws to the host instead.
    */
   readonly onError?: (error: unknown) => void;
   /**
@@ -65,6 +66,14 @@ export class Player {
   #misses = 0;
 
   constructor(
+    /**
+     * The session underneath, for what the player does not wrap: the
+     * story's state, `checkpoint`, the console variables and entities.
+     * **A verb called on it goes round the player**: a pending hold is not
+     * cancelled and may wake a later turn, and nothing it answers reaches
+     * `onEffect` or the sound — `writeCvar`'s effects, say, are the host's
+     * to deliver.
+     */
     readonly session: Session,
     readonly handlers: PlayerHandlers,
   ) {}
@@ -115,10 +124,15 @@ export class Player {
     this.#run('start', () => this.session.start());
   }
 
+  /**
+   * Takes the choice at `index` among those offered. With none, the reader
+   * leaves: the passage flows nowhere and the story ends there.
+   */
   choose(index?: number): void {
     this.#run('choose', () => this.session.choose(index));
   }
 
+  /** Answers the prompt showing. With none, the reader leaves, as with `choose()`. */
   answer(values?: Answers): void {
     this.#run('answer', () => this.session.answer(values));
   }
@@ -131,7 +145,12 @@ export class Player {
     this.#run('restart', () => this.session.restart());
   }
 
-  /** Puts the story down and answers its save. */
+  /**
+   * Puts the story down and answers its save, as `Session.pause` does —
+   * `undefined`, and nothing stopped, unless the story is on a passage or a
+   * prompt. It still answers after `dispose`, so a page can save on its way
+   * out. Not `SoundscapeDriver.pause`.
+   */
   pause(): string | undefined {
     this.#enter('pause');
     this.#cancel();
@@ -156,13 +175,20 @@ export class Player {
     return fed.result;
   }
 
-  /** Stops waiting on any hold and delivers nothing more. */
+  /**
+   * Stops waiting on any hold and delivers nothing more. After it, `start`,
+   * `choose`, `answer`, `setLocale`, `restart` and `stop` do nothing at all
+   * — the story does not move — and `pause` still answers a save.
+   */
   dispose(): void {
     this.#cancel();
     this.#disposed = true;
   }
 
   #run(name: string, verb: () => Effect[]): void {
+    // Moving a story nobody will hear about would leave the page drawing a
+    // turn the session has already left.
+    if (this.#disposed) return;
     this.#enter(name);
     this.#cancel();
     this.#dispatch(verb());

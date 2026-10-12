@@ -5,6 +5,14 @@ package's own.
 
 ## Unreleased — 1.5.0
 
+- **A disposed `Player` moves the story no further.** `start`, `choose`,
+  `answer`, `setLocale`, `restart` and `stop` do nothing after `dispose`,
+  where they used to advance the session and deliver nothing of it; `pause`
+  still answers a save. **`SoundscapeDriver.apply` throws a `RippleError`**
+  for a soundscape that is a copy of the one the engine handed out, where it
+  used to play silence. `RunEvent`, `TrackMode` and `CallbackKind` are
+  exported, and `Campaign`'s internal `engine` and `handle` leave the
+  declarations.
 - **The first release.** The engine of contract 1.5, both variants, as
   WebAssembly components transpiled by jco 1.37.0 in async instantiation.
   `Campaign.load` serves a bundle as a folder, `Session` is the host API one

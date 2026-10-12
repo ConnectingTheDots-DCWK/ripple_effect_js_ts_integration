@@ -16,6 +16,7 @@ import type {
 } from '../generated/no-python/interfaces/ripple-engine-mixer.js';
 import type { Campaign } from './campaign.js';
 import { type AudioCommand, engineSoundscapes } from './effects.js';
+import { RippleError } from './errors.js';
 import type { Speaker, Voice } from './speaker.js';
 
 export interface SoundscapeOptions {
@@ -60,13 +61,23 @@ export class SoundscapeDriver {
     if (options.muted) this.setMuted(true);
   }
 
-  /** Obeys one of the session's audio commands. */
+  /**
+   * Obeys one of the session's audio commands — the very object an `audio`
+   * effect carried, or a soundscape `Campaign.soundscape` answered. **A
+   * `play` whose soundscape was copied, rebuilt or parsed from JSON throws**:
+   * the scheduler is handed the engine's own record of it, and only the
+   * original object leads back to that.
+   */
   apply(command: AudioCommand): void {
     if (this.#disposed) return;
     switch (command.kind) {
       case 'play': {
         const raw = engineSoundscapes.get(command.soundscape);
-        if (!raw) return;
+        if (!raw) {
+          throw new RippleError(
+            `the soundscape ${command.soundscape.id} was not handed out by this package: apply the effect's own object, not a copy`,
+          );
+        }
         // A track whose file the page cannot find is heard as silence and
         // never retried (§9) — told to the scheduler rather than tried.
         const unresolved = command.soundscape.tracks.flatMap((track, index) =>
@@ -103,7 +114,11 @@ export class SoundscapeDriver {
     return this.#call((mixer) => mixer.muted());
   }
 
-  /** Holds every voice where it is, and the clock with them — a page hidden, say. */
+  /**
+   * Holds every voice where it is, and the clock with them — a page hidden,
+   * say. The story is not touched: not `Player.pause`, which puts the story
+   * down.
+   */
   pause(): void {
     this.#run((mixer) => mixer.pause(this.#clock()));
   }
@@ -112,7 +127,10 @@ export class SoundscapeDriver {
     this.#run((mixer) => mixer.resume(this.#clock()));
   }
 
-  /** The soundscape sounding, by id, if any. */
+  /**
+   * The id of the soundscape in force: the one sounding, or the one waiting
+   * its turn while the last fades out.
+   */
   get playing(): string | undefined {
     return this.#call((mixer) => mixer.playingId());
   }

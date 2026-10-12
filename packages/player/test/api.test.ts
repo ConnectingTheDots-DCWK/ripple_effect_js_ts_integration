@@ -256,6 +256,23 @@ describe('callbacks', () => {
   });
 });
 
+describe('the player', () => {
+  test('a disposed player moves the story no further, and still answers a save', async () => {
+    const campaign = await Campaign.fromFiles(bundleFiles('the-abacus'), { python: false });
+    const session = campaign.session({ seed: 1 });
+    const seen: Effect[] = [];
+    const player = new Player(session, { onEffect: (effect) => seen.push(effect) });
+    player.start();
+    const parked = session.checkpoint();
+    expect(parked).toBeDefined();
+    player.dispose();
+    player.stop();
+    expect(session.checkpoint()).toBe(parked);
+    expect(seen.some((effect) => effect.kind === 'stopped')).toBe(false);
+    expect(player.pause()).toBeDefined();
+  });
+});
+
 describe('the console and the guard', () => {
   test('a line of Python answers its value, its output and its failure', async () => {
     const campaign = await Campaign.fromFiles(bundleFiles('the-abacus'), { python: true });
