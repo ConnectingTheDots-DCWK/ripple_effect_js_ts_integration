@@ -18,6 +18,7 @@ export {
   type AudioCommand,
   type CallbackEvent,
   type CallbackEventName,
+  type CallbackKind,
   type Changed,
   type Choice,
   type CvarSnapshot,
@@ -27,9 +28,11 @@ export {
   type Passage,
   type Prompt,
   type PromptField,
+  type RunEvent,
   resolveLink,
   type Soundscape,
   type Track,
+  type TrackMode,
   type Turn,
 } from './effects.js';
 export type { EngineOptions, Variant } from './engine.js';
