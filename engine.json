@@ -1,18 +1,24 @@
 {
-  "$comment": "The engine release these bindings carry. `pnpm engine` downloads it, verifies the manifest's signature against engine-signing.pub and every digest against both the manifest and this file, and unpacks it into engine/. The digests are null until engine-v1.5.0 is published; until then `RIPPLE_ENGINE_TREE=<a ripple_effect checkout> pnpm engine` takes the components that checkout built, unverified.",
+  "$comment": "The engine release these bindings carry. `pnpm engine` downloads it, verifies the manifest's signature against engine-signing.pub and every digest against both the manifest and this file, and unpacks it into engine/. `RIPPLE_ENGINE_TREE=<a ripple_effect checkout> pnpm engine` takes the components that checkout built instead, unverified, to play an unreleased engine.",
   "engine": "1.5.0",
   "contract": "1.5",
-  "keyId": null,
+  "keyId": "0f6fb4654dbef4b7",
   "urls": [
     "https://ripplefx.app/go/engine/{tag}/{file}",
     "https://github.com/ConnectingTheDots-DCWK/ripple_engine_releases/releases/download/{tag}/{file}"
   ],
   "archives": {
-    "python": { "file": "ripple-engine-1.5.0-wasm32-component.tar.gz", "sha256": null },
+    "python": {
+      "file": "ripple-engine-1.5.0-wasm32-component.tar.gz",
+      "sha256": "99fe4050a4fe5e0c3b630ef9a5a1bca73510d5d8193fdc9077e4982be407db43"
+    },
     "no-python": {
       "file": "ripple-engine-1.5.0-no-python-wasm32-component.tar.gz",
-      "sha256": null
+      "sha256": "c35d26f8bef6bf7601e66055d84e9e19df4968f84f80ec3d03c74cefba099acc"
     },
-    "conformance": { "file": "ripple-conformance-1.5.0.tar.gz", "sha256": null }
+    "conformance": {
+      "file": "ripple-conformance-1.5.0.tar.gz",
+      "sha256": "5fbfbf983bcd96af4e4b5f90bcebf20f29f50e18ef8393c6b1592b1d430b058a"
+    }
   }
 }

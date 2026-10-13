@@ -24,9 +24,9 @@ Neither is repeated here.
 Node ≥ 22.18, which runs `.ts` scripts without a build step, and pnpm 11 via
 `packageManager`. `pnpm install`, then **`pnpm engine` before anything
 else**: typecheck, tests and the build all read `engine/` and the
-`generated/` made from it, and none of that is committed. Until
-`engine.json` pins a published release, `RIPPLE_ENGINE_TREE=<a ripple_effect
-checkout> pnpm engine` takes what that checkout's `melos run wasm:build`
+`generated/` made from it, and none of that is committed. To play an
+unreleased engine, `RIPPLE_ENGINE_TREE=<a ripple_effect checkout> pnpm
+engine` takes what that checkout's `melos run wasm:build`
 made, and writes `engine/UNVERIFIED` to say so.
 
 ## Verifying a change
@@ -153,8 +153,16 @@ A package's version is the contract's `MAJOR.MINOR` and its own `PATCH`.
   digests from its signed manifest.
 - Run `pnpm engine` (it refuses a mismatch), then `pnpm check` and the
   browser pass.
-- Move the `CHANGELOG.md` section, then dispatch **Publish** with
-  `createRelease`. It tags `v<version>`, creates the GitHub release and
-  publishes with npm's trusted publishing.
+- Head the package's `CHANGELOG.md` section `## <version>`, then dispatch
+  **publish** on `main`, naming the package. It refuses a version already
+  tagged, a version with no section and an unverified engine; tags
+  `<package>-v<version>`, creates the GitHub release from that section and
+  publishes with npm's trusted publishing and provenance. `player` goes
+  first: `soundscape` peers on it.
+- **A package's first version is published by hand**, because npm's
+  trusted-publisher page exists only for a package that does: `npm publish
+  --access public` from the packed archive, then the package's Settings →
+  Trusted publishing → GitHub Actions, this repository, `publish.yml`. Every
+  later version goes through the workflow and no token is stored.
 - **Check the archive, not the dry run.** Run `npm pack` and read the file
   list: `dist/`, `generated/<both>/`, `ENGINE-NOTICE`, `LICENSE`.
