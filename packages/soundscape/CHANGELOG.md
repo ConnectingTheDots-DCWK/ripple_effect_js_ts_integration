@@ -3,7 +3,7 @@
 `MAJOR.MINOR` is the Ripple Effect contract this package works with;
 `PATCH` is the package's own.
 
-## Unreleased — 1.5.0
+## 1.5.0
 
 - **The first release.** `WebAudioSpeaker` implements `@ripplefx/player`'s
   `Speaker`. A track streams through a media element into a gain node; a cue

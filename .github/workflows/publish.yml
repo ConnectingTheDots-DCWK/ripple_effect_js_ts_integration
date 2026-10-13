@@ -97,7 +97,10 @@ jobs:
         run: |
           pnpm pack --out "$RUNNER_TEMP/package.tgz"
           tar -tzf "$RUNNER_TEMP/package.tgz" | sort | tee "$RUNNER_TEMP/files.txt"
-          grep -q '^package/ENGINE-NOTICE$' "$RUNNER_TEMP/files.txt" || { echo "::error::ENGINE-NOTICE is not in the package"; exit 1; }
+          # The engine and its notice travel in player; soundscape carries neither.
+          if [ "${{ inputs.package }}" = player ]; then
+            grep -q '^package/ENGINE-NOTICE$' "$RUNNER_TEMP/files.txt" || { echo "::error::ENGINE-NOTICE is not in the package"; exit 1; }
+          fi
 
       - name: Tag and release
         env:

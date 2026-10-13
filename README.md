@@ -24,9 +24,9 @@ pnpm check      # biome, typecheck, the conformance suite in Node
 pnpm --filter @ripplefx/player browsers   # …and in Chromium, Firefox, WebKit
 ```
 
-Until `engine.json` pins a published release, `RIPPLE_ENGINE_TREE=<a
-ripple_effect checkout> pnpm engine` takes the components that checkout built
-with `melos run wasm:build`, unverified.
+To play an unreleased engine, `RIPPLE_ENGINE_TREE=<a ripple_effect checkout>
+pnpm engine` takes the components that checkout built with `melos run
+wasm:build`, unverified.
 
 ## Licence
 

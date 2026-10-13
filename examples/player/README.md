@@ -14,14 +14,14 @@ committed. Skipping that is an import error for `@ripplefx/player`.
 
 ```sh
 pnpm install
-pnpm engine                        # or, until engine.json pins a release:
+pnpm engine                        # or, for an unreleased engine:
 RIPPLE_ENGINE_TREE=<a ripple_effect checkout> pnpm engine
 pnpm build
 RIPPLE_CAMPAIGNS=<a folder of compiled bundles> pnpm --filter @ripplefx/example-player dev
 ```
 
-`pnpm engine` refuses while `engine.json` pins no published release. Until
-then `RIPPLE_ENGINE_TREE` takes the components a checkout of the engine built
+`pnpm engine` takes the release `engine.json` pins, verified.
+`RIPPLE_ENGINE_TREE` takes instead the components a checkout of the engine built
 with `fvm dart run melos run wasm:build`, from its `target/wasm/`. Run
 `pnpm engine` and `pnpm build` again after the engine or the packages change;
 an edit to the example itself is picked up by the dev server.

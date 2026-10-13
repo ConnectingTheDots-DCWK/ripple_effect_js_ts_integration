@@ -3,7 +3,7 @@
 `MAJOR.MINOR` is the Ripple Effect contract this package binds; `PATCH` is the
 package's own.
 
-## Unreleased — 1.5.0
+## 1.5.0
 
 - **A disposed `Player` moves the story no further.** `start`, `choose`,
   `answer`, `setLocale`, `restart` and `stop` do nothing after `dispose`,
