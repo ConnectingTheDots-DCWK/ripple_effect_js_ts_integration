@@ -47,7 +47,8 @@ jobs:
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
-          # Trusted publishing needs npm 11.5.1 or newer, which Node 24 carries.
+          # Trusted publishing needs npm 11.5.1 or newer, which Node 24 carries:
+          # the one place this repository runs a Node other than mise.toml's.
           node-version: 24
           cache: pnpm
           registry-url: https://registry.npmjs.org

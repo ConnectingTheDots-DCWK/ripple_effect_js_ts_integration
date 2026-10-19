@@ -21,8 +21,11 @@ Neither is repeated here.
 
 ## Environment
 
-Node ≥ 22.18, which runs `.ts` scripts without a build step, and pnpm 11 via
-`packageManager`. `pnpm install`, then **`pnpm engine` before anything
+Node at `mise.toml`'s version — at or above `engines`' 22.18, the first that
+runs `.ts` scripts without a build step — and pnpm at `packageManager`'s.
+`mise install` puts Node and the hooks' tools on a machine, `mise run doctor`
+(`scripts/doctor.sh`) checks all of it, pnpm and Playwright's browsers
+included, and CI installs Node with `jdx/mise-action` from the same file. `pnpm install`, then **`pnpm engine` before anything
 else**: typecheck, tests and the build all read `engine/` and the
 `generated/` made from it, and none of that is committed. To play an
 unreleased engine, `RIPPLE_ENGINE_TREE=<a ripple_effect checkout> pnpm

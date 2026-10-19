@@ -17,10 +17,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      # Node at mise.toml's version; pnpm/action-setup reads packageManager.
+      - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
         with:
-          node-version-file: .nvmrc
-          cache: pnpm
+          version: 2026.10.2
+          install_args: node
       - run: pnpm install --frozen-lockfile
       - run: pnpm engine
       - run: pnpm --filter @ripplefx/player exec playwright install --with-deps chromium firefox webkit
