@@ -33,7 +33,7 @@
   "sideEffects": false,
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "typecheck": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.build.json",
     "test": "vitest run",
     "browsers": "node test/browser/run.ts",
     "prepack": "pnpm build"
