@@ -125,3 +125,35 @@ form textarea {
   border-radius: 8px;
   padding: 0.4rem 0.6rem;
 }
+form select {
+  justify-self: start;
+}
+form .option {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+.permit {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+.permit p {
+  flex-basis: 100%;
+  margin: 0;
+}
+.permit input {
+  flex: 1;
+  min-width: 12rem;
+  font: inherit;
+  color: var(--ink);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.35rem 0.6rem;
+}
+form input[type="checkbox"] {
+  justify-self: start;
+}

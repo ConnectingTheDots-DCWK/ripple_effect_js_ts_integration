@@ -2,8 +2,10 @@
 
 The packages as a page uses them: a campaign opened from a folder, its
 passages drawn with their pictures, its soundscapes played through the Web
-Audio speaker, a language switch, mute, restart, and 1–9 for the choices. It
-is where a developer starts from, and the **listening pass** for the
+Audio speaker, a language switch, mute, restart, and 1–9 for the choices;
+forms in the reader's words with their fixed answers, the question a story
+asks before it reads the clock or the place, with a stand-in for a no, and a
+passage's countdown drawn as it runs. It is where a developer starts from, and the **listening pass** for the
 soundscape speaker, because a test can count voices but only a person can
 hear a seam.
 

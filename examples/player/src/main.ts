@@ -4,10 +4,15 @@
 // a test can count voices, and only a person can hear a seam.
 import {
   Campaign,
+  type Countdown,
   type Effect,
+  momentOf,
   type Passage,
+  type PermissionKind,
   Player,
   type Prompt,
+  type PromptField,
+  type RippleValue,
   resolveLink,
   SoundscapeDriver,
 } from '@ripplefx/player';
@@ -35,6 +40,11 @@ let campaign: Campaign | undefined;
 let player: Player | undefined;
 let audio: SoundscapeDriver | undefined;
 const speaker = new WebAudioSpeaker();
+// What the engine said about a read of the clock or the place since the last
+// page, drawn above the next one.
+const notices: string[] = [];
+// The countdown being drawn, when it is begun and the author meant it seen.
+let counting: { ends: number; ms: number } | undefined;
 
 function element<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -49,6 +59,17 @@ function note(text: string): HTMLElement {
   const paragraph = element('p', text);
   paragraph.className = 'note';
   return paragraph;
+}
+
+function notes(): HTMLElement[] {
+  return notices.splice(0).map(note);
+}
+
+function button(text: string, onclick: () => void): HTMLButtonElement {
+  const made = element('button', text);
+  made.type = 'button';
+  made.onclick = onclick;
+  return made;
 }
 
 function prose(passage: Passage): HTMLElement {
@@ -67,7 +88,7 @@ function prose(passage: Passage): HTMLElement {
 }
 
 function showPassage(passage: Passage): void {
-  stage.replaceChildren();
+  stage.replaceChildren(...notes());
   if (passage.untranslated) {
     stage.append(note(`This passage has no ${passage.untranslated} text yet.`));
   }
@@ -90,42 +111,198 @@ function showPassage(passage: Passage): void {
     choices.append(button);
   }
   stage.append(choices);
+  // A change of language draws the page again, and the countdown runs on.
+  drawCountdown();
+}
+
+// One field's control, and how to read it: `undefined` is left empty.
+function control(field: PromptField): [HTMLElement, () => RippleValue | undefined] {
+  const filled = (value: RippleValue) =>
+    Array.isArray(field.default)
+      ? field.default.some((item) => item === value)
+      : field.default === value;
+  if (field.options.length && field.type.endsWith('List')) {
+    // Any number of the options, answered by their ids.
+    const boxes = field.options.map((option) => {
+      const box = element('input');
+      box.type = 'checkbox';
+      box.value = option.id;
+      box.checked = filled(option.value);
+      const label = element('label', option.label);
+      label.className = 'option';
+      label.prepend(box);
+      return [label, box] as const;
+    });
+    const set = element('div');
+    set.append(...boxes.map(([label]) => label));
+    return [
+      set,
+      () => {
+        const picked = boxes.filter(([, box]) => box.checked).map(([, box]) => box.value);
+        return picked.length ? picked : undefined;
+      },
+    ];
+  }
+  if (field.options.length || (field.type === 'bool' && field.optional)) {
+    // One of them, or none for a field that may be left empty: a truth that
+    // may be left empty needs a third state, which a checkbox has not got.
+    const select = element('select');
+    if (field.optional) select.append(new Option('—', ''));
+    if (field.options.length) {
+      for (const option of field.options) {
+        select.append(new Option(option.label, option.id, false, filled(option.value)));
+      }
+    } else {
+      select.append(
+        new Option('Yes', 'true', false, field.default === true),
+        new Option('No', 'false', false, field.default === false),
+      );
+    }
+    select.required = !field.optional;
+    return [select, () => select.value || undefined];
+  }
+  const input = element('input');
+  input.placeholder = field.placeholder;
+  if (field.type === 'bool') {
+    input.type = 'checkbox';
+    input.checked = field.default === true;
+    return [input, () => input.checked];
+  }
+  input.required = !field.optional;
+  if (field.type === 'number') {
+    input.type = 'number';
+    input.step = 'any';
+  }
+  // A list is typed as text, its items split on commas by the engine.
+  if (Array.isArray(field.default)) input.value = field.default.join(', ');
+  else if (field.default !== null && typeof field.default !== 'object')
+    input.value = String(field.default);
+  return [
+    input,
+    () =>
+      input.value.trim() === ''
+        ? undefined
+        : field.type === 'number'
+          ? Number(input.value)
+          : input.value,
+  ];
 }
 
 function showPrompt(prompt: Prompt): void {
-  stage.replaceChildren(element('h2', prompt.title));
+  stage.replaceChildren(...notes(), element('h2', prompt.title));
   const form = element('form');
-  for (const field of prompt.fields) {
-    const label = element('label', field.name);
-    const input = element('input');
-    input.name = field.name;
-    if (field.type === 'bool') input.type = 'checkbox';
-    else if (field.type === 'int' || field.type === 'float') input.type = 'number';
-    if (field.default !== null && typeof field.default !== 'object')
-      input.value = String(field.default);
+  const fields = prompt.fields.map((field) => {
+    // The reader's words for it; `name` is what the answer is keyed by.
+    const label = element('label', field.optional ? `${field.label} (optional)` : field.label);
+    const [input, read] = control(field);
     label.append(input);
     form.append(label);
-  }
+    return { field, input, read };
+  });
   const submit = element('button', 'Continue');
   submit.className = 'primary';
   form.append(submit);
   form.onsubmit = (event) => {
     event.preventDefault();
-    const values: Record<string, string | boolean | number | bigint> = {};
-    for (const field of prompt.fields) {
-      const input = form.elements.namedItem(field.name) as HTMLInputElement;
-      values[field.name] =
-        field.type === 'bool'
-          ? input.checked
-          : field.type === 'int'
-            ? BigInt(Math.trunc(Number(input.value || 0)))
-            : field.type === 'float'
-              ? Number(input.value || 0)
-              : input.value;
+    const values: Record<string, RippleValue> = {};
+    for (const { field, input, read } of fields) {
+      const value = read();
+      // A required field is not submitted empty; an optional one is left out.
+      if (value === undefined && !field.optional) {
+        const first = input.querySelector('input') ?? input;
+        if (first instanceof HTMLInputElement || first instanceof HTMLSelectElement) {
+          first.setCustomValidity('Please answer this one.');
+          first.reportValidity();
+          first.addEventListener('input', () => first.setCustomValidity(''), { once: true });
+        }
+        return;
+      }
+      if (value !== undefined) values[field.name] = value;
     }
     player?.answer(values);
   };
   stage.append(form);
+}
+
+const ASKS: Record<PermissionKind, [question: string, standIn: string]> = {
+  dateTime: ['This story would like to know the date and time.', 'or a time, 2026-10-31 23:00'],
+  location: ['This story would like to know where you are.', 'or a place, Rome or 41.9, 12.5'],
+};
+
+// The question before the story begins, a kind at a time. A reader who says
+// no may say what the story should believe instead.
+function showPermit(kinds: readonly PermissionKind[]): void {
+  stage.replaceChildren(...notes(), element('h2', 'Before the story begins'));
+  for (const kind of kinds) {
+    const [question, hint] = ASKS[kind];
+    const row = element('div');
+    row.className = 'permit';
+    const standIn = element('input');
+    standIn.placeholder = hint;
+    standIn.setAttribute('aria-label', `What the story should believe instead`);
+    const answered = (granted: boolean) => {
+      row.remove();
+      player?.permit(kind, granted);
+    };
+    row.append(
+      element('p', question),
+      button('Allow', () => {
+        // A fix is handed over before the yes that begins the story, or its
+        // first page reads nothing.
+        if (kind !== 'location' || !navigator.geolocation) return answered(true);
+        navigator.geolocation.getCurrentPosition(
+          (fix) => {
+            player?.setPosition({
+              latitude: fix.coords.latitude,
+              longitude: fix.coords.longitude,
+              accuracy: fix.coords.accuracy,
+              when: momentOf(new Date(fix.timestamp)),
+            });
+            answered(true);
+          },
+          () => answered(true),
+          { timeout: 10_000 },
+        );
+      }),
+      button("Don't allow", () => {
+        try {
+          player?.setStandIn(kind, standIn.value.trim() || undefined);
+        } catch (error) {
+          standIn.setCustomValidity((error as Error).message);
+          standIn.reportValidity();
+          return;
+        }
+        answered(false);
+      }),
+      standIn,
+    );
+    stage.append(row);
+  }
+}
+
+function onCountdown(countdown: Countdown | undefined): void {
+  counting =
+    countdown?.begun && countdown.timer.visible
+      ? { ends: performance.now() + countdown.timer.timeoutMs, ms: countdown.timer.timeoutMs }
+      : undefined;
+  drawCountdown();
+}
+
+function drawCountdown(): void {
+  stage.querySelector('.countdown')?.remove();
+  if (!counting) return;
+  const left = Math.max(0, counting.ends - performance.now());
+  const bar = element('div');
+  bar.className = 'hold countdown';
+  const fill = element('div');
+  bar.append(fill);
+  const choices = stage.querySelector('.choices');
+  if (choices) choices.before(bar);
+  else stage.append(bar);
+  fill.animate([{ width: `${(100 * left) / counting.ms}%` }, { width: '0%' }], {
+    duration: left,
+    fill: 'forwards',
+  });
 }
 
 function showHold(ms: number): void {
@@ -144,6 +321,12 @@ function onEffect(effect: Effect): void {
       break;
     case 'ask':
       showPrompt(effect.prompt);
+      break;
+    case 'permit':
+      showPermit(effect.kinds);
+      break;
+    case 'notice':
+      notices.push(effect.notice.message);
       break;
     case 'hold':
       showHold(effect.ms);
@@ -210,8 +393,10 @@ function start(locale: string): void {
   player?.dispose();
   audio?.dispose();
   audio = new SoundscapeDriver(campaign, speaker, { muted: mute.dataset.muted === 'true' });
+  notices.length = 0;
   player = new Player(campaign.session({ seed: BigInt(Date.now()), locale }), {
     onEffect,
+    onCountdown,
     audio,
     onError: (error) => onEffect({ kind: 'failed', message: (error as Error).message }),
   });
