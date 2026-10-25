@@ -148,8 +148,9 @@ A passage may wait only so long: `passage.timer` says how long before its
 countdown begins (`afterMs`), how long it runs (`timeoutMs`), whether the
 author meant it seen (`visible`) and which choice it takes (`default`). The
 engine keeps no time. A `Player` does: it says `beginCountdown` and then
-`expire` when the time comes, drops both waits when the story moves, and
-tells `onCountdown` where it stands, `undefined` once it is gone:
+`expire` when the time comes, drops both waits when the story moves — and
+not for a verb the session refused, which moved nothing — and tells
+`onCountdown` where it stands, `undefined` once it is gone:
 
 ```ts
 const player = new Player(session, {
@@ -179,8 +180,9 @@ player.permit('dateTime', true);
 player.permit('location', false); // the last answer begins the story
 ```
 
-A host that already knows its answers gives them before `start`, and the
-reader is never asked. A save carries none, so answer a resumed session
+Until the last answer, `player.turn` is that turn less the kinds answered,
+so a host drawing from it asks only what is left. A host that already knows
+its answers gives them before `start`, and the reader is never asked. A save carries none, so answer a resumed session
 again.
 
 - **The clock is the `Player`'s `now`**, `momentOf()` unless you pass your

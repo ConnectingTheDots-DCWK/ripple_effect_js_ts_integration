@@ -4,8 +4,10 @@
 // turn the last one named, and is the host's clock for a `hold` — it waits
 // the milliseconds the story asked for and says `elapsed` (§14 of the host
 // API asks a host to route a hold to its own clock, and this is that). A
-// verb while a hold is pending cancels the wait first, so a restart during a
-// pause in the story does not wake the story up again a moment later.
+// verb that moves the story while a hold is pending cancels the wait, so a
+// restart during a pause in the story does not wake the story up again a
+// moment later; one the session refuses moved nothing (§11), and cancels
+// nothing.
 //
 // It is the host's clock for a passage's countdown the same way
 // (`campaign-host-api.md` §4b): it waits the timer's `afterMs`, says
@@ -127,7 +129,11 @@ export class Player {
     readonly handlers: PlayerHandlers,
   ) {}
 
-  /** Where the story is: the last passage, prompt, question, wait or ending shown. */
+  /**
+   * Where the story is: the last passage, prompt, question, wait or ending
+   * shown — or, once `permit` has answered some of a `permit` turn's kinds,
+   * that turn less them, since the engine delivers nothing for those.
+   */
   get turn(): Turn | undefined {
     return this.#turn;
   }
@@ -194,15 +200,20 @@ export class Player {
   /**
    * The reader's answer about one kind, at any time — before `start`, for a
    * host that remembers it, and then nobody is asked. On a `permit` turn the
-   * answer to the last kind begins the story. A pending wait or countdown
-   * runs on: an answer moves nothing.
+   * answer to the last kind begins the story; until then `turn` is that
+   * turn less the kinds answered. A pending wait or countdown runs on: an
+   * answer moves nothing.
    */
   permit(kind: PermissionKind, granted: boolean): void {
     if (this.#disposed) return;
     this.#enter('permit');
     if (granted) this.#granted.add(kind);
     else this.#granted.delete(kind);
+    const asked = this.#turn;
     this.#dispatch(this.#stamped(() => this.session.permit(kind, granted)));
+    if (asked?.kind === 'permit' && this.#turn === asked && asked.kinds.includes(kind)) {
+      this.#turn = { kind: 'permit', kinds: asked.kinds.filter((each) => each !== kind) };
+    }
   }
 
   /**
@@ -233,8 +244,9 @@ export class Player {
   beginCountdown(): void {
     if (this.#disposed) return;
     this.#enter('beginCountdown');
+    const effects = this.#stamped(() => this.session.beginCountdown());
     this.#dropCountdown();
-    this.#dispatch(this.#stamped(() => this.session.beginCountdown()));
+    this.#dispatch(effects);
   }
 
   /** Says the showing passage's countdown ran out: its default is taken. */
@@ -268,8 +280,10 @@ export class Player {
    */
   pause(): string | undefined {
     this.#enter('pause');
-    this.#cancel();
     const paused = this.session.pause();
+    // Anywhere but a passage or a prompt nothing stopped, and a hold
+    // cancelled there would never wake.
+    if (paused.save !== undefined) this.#cancel();
     this.#dispatch(paused.effects);
     return paused.save;
   }
@@ -305,8 +319,12 @@ export class Player {
     // turn the session has already left.
     if (this.#disposed) return;
     this.#enter(name);
+    // A refusal throws from here and moved nothing (§11), so the waits it
+    // would have dropped run on; one that answers drops them before its
+    // batch is delivered.
+    const effects = this.#stamped(verb);
     this.#cancel();
-    this.#dispatch(this.#stamped(verb));
+    this.#dispatch(effects);
   }
 
   /** Runs `verb` after telling the engine what time it is, if it may know. */

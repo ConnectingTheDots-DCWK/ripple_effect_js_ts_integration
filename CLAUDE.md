@@ -91,12 +91,20 @@ example: every check there passing says nothing about a seam in a loop.
   hands that to the host, and the fixture driver sets it, because a clock
   that does not wait would only ever take the default (ADR
   *a-countdown-is-the-hosts*). It stamps `setNow` before every verb **only
-  once `dateTime` was granted through its own `permit`**, as the Dart
-  binding does; a grant made on `player.session` goes round it.
-- **`setLocale` and `permit` move nothing, so they cancel nothing.** Every
-  other verb drops a pending hold and countdown first. A change of language
-  during a wait answers no effects, so cancelling the hold there stranded
-  the story for good, which 1.5.0 shipped.
+  once `dateTime` was granted through its own `permit`**, as §7a puts it —
+  the Dart binding stamps whenever it has a clock and leaves the refusal to
+  the engine; a grant made on `player.session` goes round it.
+- **Only a verb that moved the story drops a wait.** The verb runs first,
+  and the pending hold and countdown are dropped once it has answered,
+  before its batch is delivered. A refusal throws before that, a `pause`
+  that answered no save stopped nothing, and `setLocale` and `permit` never
+  move anything, so all of those leave both running. Cancelling first
+  stranded the story for good three ways: a change of language during a
+  wait, which 1.5.0 shipped, and a spent choice pressed or a pause during a
+  hold, which the 1.6 review found.
+- **A partly answered `permit` turn narrows `turn`.** The engine delivers
+  nothing until the last kind is answered, so `Player.turn` is that turn
+  less the kinds answered, as the Dart binding's is.
 - **Ints are `bigint`, Floats are `number`**, in both directions. A plain
   object is accepted as a map when writing, and a `Map` is what comes back.
 

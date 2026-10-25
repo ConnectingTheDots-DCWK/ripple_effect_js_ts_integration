@@ -27,6 +27,7 @@ package's own.
   `countdown.expired`. A `Player` runs the countdown itself — waits
   `afterMs`, begins it, waits `timeoutMs`, runs it out, and drops both waits
   when the story moves — and says where it stands to `onCountdown`.
+  `Player.turn` on a `permit` turn is the kinds still unanswered.
   `countdowns: false` leaves it to the host, for a clock that does not wait
   or a reader who asked for no time limits.
 - **A form speaks the reader's language and may offer fixed answers.**
@@ -37,11 +38,12 @@ package's own.
 - `HostFailure` gains `not-permitted` and `stand-in`, the run trace's
   `nothing-on-wire` issue arrives as the engine spells it, and
   `CampaignManifest.permissions` lists what a story reads.
-- **Fixed: a change of language during a wait stranded the story.** Any
-  `Player` verb cancelled a pending `hold`, `setLocale` included, and a
-  language change during a wait answers nothing, so the `elapsed` never
-  came. `setLocale` and `permit` move nothing, and now leave the wait, and
-  a countdown, running.
+- **Fixed: a verb that moved nothing during a wait stranded the story.**
+  Any `Player` verb cancelled a pending `hold` before it ran: `setLocale`,
+  which answers nothing during a wait, a verb the session refused — a
+  spent choice pressed — and a `pause` anywhere but a passage or a prompt,
+  so the `elapsed` never came. Only a verb the session answered drops a
+  wait now, and a countdown the same; `setLocale` and `permit` never do.
 - Plays every conformance fixture of the 1.6 tree, 33 with Python and 27
   without, in Node through both `Session` and `Player` and in Chromium,
   Firefox and WebKit. The driver reads the fixtures' `now`, `permit` and

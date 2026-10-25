@@ -274,7 +274,7 @@ describe('the player', () => {
     expect(player.pause()).toBeDefined();
   });
 
-  test('a change of language during a wait leaves the wait running', async () => {
+  test('a change of language, a refusal or a pause that stops nothing leaves a wait running', async () => {
     vi.useFakeTimers();
     try {
       const campaign = await Campaign.fromFiles(bundleFiles('the-hourglass'), { python: false });
@@ -283,6 +283,9 @@ describe('the player', () => {
       player.choose(0);
       expect(player.turn).toEqual({ kind: 'hold', ms: 1500 });
       player.setLocale('en-US');
+      // None of these moves the story, so none of them may stop its clock.
+      expect(() => player.choose(0)).toThrow(HostError);
+      expect(player.pause()).toBeUndefined();
       vi.advanceTimersByTime(1500);
       expect(player.turn).toMatchObject({ kind: 'show', passage: { node: 'narration_4' } });
     } finally {
@@ -372,6 +375,26 @@ describe('countdowns', () => {
     }
   });
 
+  test('a verb the session refuses moves nothing, so the countdown runs on', async () => {
+    vi.useFakeTimers();
+    try {
+      const campaign = await Campaign.fromFiles(bundleFiles('the-hesitation'));
+      const told: (Countdown | undefined)[] = [];
+      const player = new Player(campaign.session(), {
+        onEffect: () => {},
+        onCountdown: (countdown) => told.push(countdown),
+      });
+      player.start();
+      expect(refusal(() => player.choose(99))).toMatchObject({ kind: 'no-such-choice' });
+      expect(player.countdown?.begun).toBe(false);
+      expect(told).toHaveLength(1);
+      vi.advanceTimersByTime(7000);
+      expect(player.turn).toMatchObject({ kind: 'show', passage: { node: 'narration_3' } });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   test('a countdown out of order is refused, and one where there is none', async () => {
     const timed = (await Campaign.fromFiles(bundleFiles('the-hesitation'))).session();
     timed.start();
@@ -401,6 +424,9 @@ describe('permissions', () => {
     expect(seen.at(-1)).toEqual({ kind: 'permit', kinds: ['dateTime', 'location'] });
     player.permit('location', false);
     expect(read).toBe(0);
+    // Nothing is delivered for an answer that leaves a kind unanswered, and
+    // the turn is what is still asked.
+    expect(player.turn).toEqual({ kind: 'permit', kinds: ['dateTime'] });
     expect(refusal(() => player.setPosition({ latitude: 41.9, longitude: 12.5 }))).toEqual({
       kind: 'not-permitted',
       permission: 'location',
