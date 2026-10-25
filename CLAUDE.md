@@ -42,8 +42,8 @@ RIPPLE_CAMPAIGNS=… pnpm --filter @ripplefx/example-player dev   # and listen
 ```
 
 The Node suite plays every conformance fixture of the pinned release through
-`Session` and through `Player`, in both variants: 24 with Python, and 21 without,
-skipping 3. `test/driver.ts` is the driver, written from the release's
+`Session` and through `Player`, in both variants: 33 with Python, and 27 without,
+skipping 6. `test/driver.ts` is the driver, written from the release's
 `FORMAT.md` and touching no file, so the browser pass runs the same code in a
 page. **A test has to be able to fail.** The suite was seen red three ways
 before it was trusted: a passage's title in place of its text (88 failures),
@@ -84,6 +84,19 @@ example: every check there passing says nothing about a seam in a loop.
   handler or the sound throwing goes to `onError` (or `reportError`), and
   delivery goes on. The Dart binding doesn't do this yet; the spec asks for
   it.
+- **The `Player` is the host's clock three times over**: for a `hold`, for
+  a passage's countdown, and for the instant a story reads. It waits a
+  countdown's `afterMs`, says `beginCountdown`, waits `timeoutMs`, says
+  `expire`, and drops both waits when the story moves; `countdowns: false`
+  hands that to the host, and the fixture driver sets it, because a clock
+  that does not wait would only ever take the default (ADR
+  *a-countdown-is-the-hosts*). It stamps `setNow` before every verb **only
+  once `dateTime` was granted through its own `permit`**, as the Dart
+  binding does; a grant made on `player.session` goes round it.
+- **`setLocale` and `permit` move nothing, so they cancel nothing.** Every
+  other verb drops a pending hold and countdown first. A change of language
+  during a wait answers no effects, so cancelling the hold there stranded
+  the story for good, which 1.5.0 shipped.
 - **Ints are `bigint`, Floats are `number`**, in both directions. A plain
   object is accepted as a map when writing, and a `Map` is what comes back.
 
@@ -112,10 +125,21 @@ example: every check there passing says nothing about a seam in a loop.
 - **`--no-nodejs-compat` is needed with `--instantiation async`.** Without it
   the glue keeps an `import('node:fs/promises')` that a browser bundler trips
   on, in a branch that mode never takes.
-- **jco spells a WIT enum's members with dashes**: `cvar-changed`. A value
-  a host matches on by the spec's name is mapped back through a table, as
-  `CALLBACK_EVENTS` in `effects.ts` does. The callback event shipped spelled
-  the WIT way until the fixtures' `callbacks` list compared it.
+- **jco spells a WIT enum's members with dashes**: `cvar-changed`,
+  `date-time`. A value a host matches on by the spec's name is mapped back
+  through a table, as `CALLBACK_EVENTS` and `PERMISSION_KINDS` in
+  `effects.ts` do. The callback event shipped spelled the WIT way until the
+  fixtures' `callbacks` list compared it. A host-facing enum the world only
+  passes through — `TurnKind`, `Verb` in a `wrong-turn` — keeps the world's
+  spelling.
+- **The 1.6 `FORMAT.md` does not describe what 1.6 added to a fixture**:
+  `input.json`'s `now`, `permit` and `standIns`, the `countdown`, `expire`
+  and `permit` moves, a passage's `timer` and the `permit` and `notice`
+  events. The driver follows the engine's runner,
+  `crates/ripple-runtime/src/conformance/`, instead: `now` is read at its
+  own offset, a stand-in typed without one at UTC, the host's answers are
+  told before `start` and again after every resume, and the reader leaving
+  stops at a `permit` turn.
 - **A `ComponentError` is known by its own `payload` property**, not its name
   (jco sets none) and not its class (a minifier renames it).
 - **A browser's `JSON.parse` cannot be relied on to say whether `7` was

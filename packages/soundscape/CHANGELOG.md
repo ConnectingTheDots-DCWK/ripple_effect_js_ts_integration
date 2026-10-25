@@ -3,6 +3,12 @@
 `MAJOR.MINOR` is the Ripple Effect contract this package works with;
 `PATCH` is the package's own.
 
+## 1.6.0
+
+- **Works with `@ripplefx/player` 1.6**, which it now peers on. The speaker
+  contract did not change with the contract: nothing in a soundscape's
+  sound is new in 1.6.
+
 ## 1.5.0
 
 - **The first release.** `WebAudioSpeaker` implements `@ripplefx/player`'s

@@ -3,6 +3,52 @@
 `MAJOR.MINOR` is the Ripple Effect contract this package binds; `PATCH` is the
 package's own.
 
+## 1.6.0
+
+- **The engine of contract 1.6**, Grammar Lich: the world
+  `ripple:engine@1.6.0`, bundle format 16. It also carries engine 1.5.1 to
+  1.5.4, none of which changed the web component's surface.
+- **A story may ask before it reads the clock or the reader's position.**
+  A campaign whose `manifest.permissions` names a kind nobody has answered
+  begins on a `permit` effect, a turn, and nothing else; `Session.permit`
+  answers one kind, at any time, and the answer to the last begins the
+  story. `setNow` hands it the host's instant (`momentOf()` makes one from a
+  `Date`), `setPosition` a fix, and `setStandIn` what a reader would rather
+  it believed, as typed. A read that did not get the real value is a
+  `notice` effect, once per kind and outcome. `PermissionKind` is the spec's
+  `dateTime`, not the world's `date-time`.
+- **The `Player` is the story's clock.** Once the reader has allowed
+  `dateTime` through `Player.permit`, every verb it makes is stamped with
+  `now()` first, the machine's clock unless a host passes its own; never
+  before. `Player.setStandIn` and `setPosition` pass through.
+- **A passage may count down.** `Passage.timer`, a `ChoiceTimer`; the
+  verbs `Session.beginCountdown` and `expire`; refusals `no-countdown` and
+  `countdown-not-begun`; callback events `countdown.started` and
+  `countdown.expired`. A `Player` runs the countdown itself — waits
+  `afterMs`, begins it, waits `timeoutMs`, runs it out, and drops both waits
+  when the story moves — and says where it stands to `onCountdown`.
+  `countdowns: false` leaves it to the host, for a clock that does not wait
+  or a reader who asked for no time limits.
+- **A form speaks the reader's language and may offer fixed answers.**
+  `PromptField` gains `label`, `placeholder`, `optional` and `options`, each
+  a `PromptOption` with an `id`, a `label` and a `value`; a field with
+  options is answered by the picked ids. A change of language re-announces a
+  parked prompt in the new words, with its names and ids kept.
+- `HostFailure` gains `not-permitted` and `stand-in`, the run trace's
+  `nothing-on-wire` issue arrives as the engine spells it, and
+  `CampaignManifest.permissions` lists what a story reads.
+- **Fixed: a change of language during a wait stranded the story.** Any
+  `Player` verb cancelled a pending `hold`, `setLocale` included, and a
+  language change during a wait answers nothing, so the `elapsed` never
+  came. `setLocale` and `permit` move nothing, and now leave the wait, and
+  a countdown, running.
+- Plays every conformance fixture of the 1.6 tree, 33 with Python and 27
+  without, in Node through both `Session` and `Player` and in Chromium,
+  Firefox and WebKit. The driver reads the fixtures' `now`, `permit` and
+  `standIns`, the `countdown`, `expire` and `permit` moves, and records a
+  passage's timer, a field's `optional` and `options`, and the `permit` and
+  `notice` events.
+
 ## 1.5.0
 
 - **A disposed `Player` moves the story no further.** `start`, `choose`,
