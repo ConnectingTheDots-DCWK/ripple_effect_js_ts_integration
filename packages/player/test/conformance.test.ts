@@ -1,9 +1,9 @@
 // Every conformance fixture of the pinned release, played through this
 // package's API in both variants and through both hosts, and compared with
-// what the reader must have seen. 24 with Python; 21 without, the three that
+// what the reader must have seen. 33 with Python; 27 without, the six that
 // need it skipped on their `needs` — ADR *a-campaign-plays-in-a-page*, 11.
 import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest';
-import { Campaign } from '../src/index.ts';
+import { Campaign, NeedsPython } from '../src/index.ts';
 import { play } from './driver.ts';
 import { bundleFiles, canonical, expected, fixtureNames, input } from './fixtures.ts';
 
@@ -17,7 +17,7 @@ afterAll(() => {
 });
 
 test('the release carries the fixtures', () => {
-  expect(names.length).toBe(24);
+  expect(names.length).toBe(33);
 });
 
 for (const python of [true, false]) {
@@ -29,8 +29,18 @@ for (const python of [true, false]) {
       for (const through of ['session', 'player'] as const) {
         test(`${name}, through the ${through}`, async () => {
           const fixture = input(name);
-          const campaign = await Campaign.fromFiles(bundleFiles(name), { python });
-          if (fixture.needs?.includes('python') && !campaign.hasPython) {
+          // A bundle that says it needs the interpreter is refused without
+          // it; one too old to say opens, and the engine says it has none.
+          const campaign = await Campaign.fromFiles(bundleFiles(name), { python }).catch(
+            (error: unknown) => {
+              if (error instanceof NeedsPython && fixture.needs?.includes('python')) return;
+              throw error;
+            },
+          );
+          if (
+            campaign === undefined ||
+            (fixture.needs?.includes('python') && !campaign.hasPython)
+          ) {
             if (through === 'session') skipped.push(name);
             return;
           }
@@ -46,7 +56,7 @@ for (const python of [true, false]) {
 
     test('plays every fixture it can, and skips only those needing Python', () => {
       expect(played.length + skipped.length).toBe(names.length);
-      expect(skipped.length).toBe(python ? 0 : 3);
+      expect(skipped.length).toBe(python ? 0 : 6);
     });
   });
 }

@@ -17,11 +17,13 @@ import {
   type Effect,
   type Entity,
   type Memory,
+  type PermissionKind,
   toAmbienceOrNull,
   toCvar,
   toEffects,
   toEntity,
   toMemory,
+  toWitPermission,
 } from './effects.js';
 import {
   BundleError,
@@ -140,6 +142,51 @@ export interface PythonResult {
   readonly error?: PythonFailure;
 }
 
+/**
+ * An instant, as a host hands it to a story: milliseconds since the epoch,
+ * and the offset in minutes the reader's wall clock is at — east positive,
+ * so Rome in October is `120`. `momentOf` makes one from a `Date`.
+ */
+export interface Moment {
+  readonly utcMs: number;
+  readonly offsetMinutes: number;
+}
+
+/**
+ * What `date` is, with this machine's offset at that instant — the reader's
+ * clock, for a host to hand `setNow`. Now, when no date is given.
+ */
+export function momentOf(date: Date = new Date()): Moment {
+  // getTimezoneOffset is west positive, the opposite of every offset written.
+  return { utcMs: date.getTime(), offsetMinutes: -date.getTimezoneOffset() || 0 };
+}
+
+/**
+ * A position fix, shaped after the web's `GeolocationPosition`; any part of
+ * it may be absent. A place's name with no coordinates is a fix too.
+ */
+export interface Position {
+  readonly label?: string;
+  readonly latitude?: number;
+  readonly longitude?: number;
+  /** In metres. */
+  readonly accuracy?: number;
+  /** When it was taken. */
+  readonly when?: Moment;
+}
+
+/**
+ * The offset this machine's clock is at on the date a reader typed — what a
+ * stand-in written without one is read at. The offset now, for text that
+ * names no date.
+ */
+export function localOffsetFor(typed: string): number {
+  // A date and a time with no offset is local time to `Date`; a date alone
+  // is UTC midnight, which is the same day everywhere but the date line.
+  const date = new Date(typed.trim().replace(' ', 'T'));
+  return momentOf(Number.isNaN(date.getTime()) ? new Date() : date).offsetMinutes;
+}
+
 const DEFAULTS = { stepBudget: 1 << 20, silentJumpLimit: 64, loopLimit: 512 } as const;
 
 export class Session {
@@ -183,6 +230,11 @@ export class Session {
     return new Session(campaign, raw);
   }
 
+  /**
+   * Begins the story. While a kind the campaign reads (`manifest.permissions`)
+   * has no answer, the answer is one `permit` effect and nothing else: no
+   * page, no callback, until `permit` has answered them all.
+   */
   start(): Effect[] {
     return this.#verb((raw) => raw.start());
   }
@@ -197,8 +249,12 @@ export class Session {
   }
 
   /**
-   * Answers the prompt showing. Values go to the engine exactly as given.
-   * With none, the reader leaves, as with `choose()`.
+   * Answers the prompt showing. Values go to the engine exactly as given,
+   * keyed by each field's `name`. An optional field left empty is left out
+   * or `null`; a required one is not submitted empty, which is the host's
+   * rule to keep. A field with `options` is answered with the picked ids: a
+   * string, or a list of them for a `…List`. With none, the reader leaves,
+   * as with `choose()`.
    */
   answer(values?: Answers): Effect[] {
     const fields =
@@ -216,7 +272,81 @@ export class Session {
     return this.#verb((raw) => raw.elapsed());
   }
 
-  /** Reads on in another language; the passage showing is shown again in it. */
+  /**
+   * Says the showing passage's countdown begins: its `timer.afterMs` has
+   * passed on the host's clock. Nothing moves; the answer is only the
+   * `countdown.started` callback, if an author declared one. A second call
+   * answers nothing. A passage with no timer is a `no-countdown` refusal.
+   */
+  beginCountdown(): Effect[] {
+    return this.#verb((raw) => raw.beginCountdown());
+  }
+
+  /**
+   * Says the countdown ran out: the passage's default is taken, as
+   * `choose(timer.default)` would, after a `countdown.expired` callback.
+   * Before `beginCountdown` it is a `countdown-not-begun` refusal — the
+   * second timer of two fired without the first.
+   */
+  expire(): Effect[] {
+    return this.#verb((raw) => raw.expire());
+  }
+
+  /**
+   * The reader's answer about one kind, at any time — before `start` too,
+   * for a host that already knows it, and then nobody is asked. On a
+   * `permit` turn, the answer to the last kind unanswered begins the story,
+   * and this answers everything up to its first real turn. Not part of a
+   * save: a resumed session is answered again.
+   */
+  permit(kind: PermissionKind, granted: boolean): Effect[] {
+    return this.#verb((raw) => raw.permit(toWitPermission(kind), granted));
+  }
+
+  /**
+   * What time it is, before every verb that can step, from a host the reader
+   * allowed `dateTime`; `undefined` is no clock. Within one verb time does
+   * not move. `momentOf()` is now.
+   */
+  setNow(now?: Moment): void {
+    this.#call((raw) =>
+      raw.setNow(
+        now === undefined
+          ? undefined
+          : { utcMs: BigInt(Math.trunc(now.utcMs)), offsetMinutes: now.offsetMinutes },
+      ),
+    );
+  }
+
+  /**
+   * The host's last position fix, or `undefined` for none. Refused as
+   * `not-permitted` once the reader has said no to `location`; one given
+   * before the answer is kept and read only if it is yes, so a host that
+   * fetches a fix on a yes hands it over before the `permit` that says so.
+   */
+  setPosition(fix?: Position): void {
+    this.#call((raw) => raw.setPosition(fix === undefined ? undefined : witPosition(fix)));
+  }
+
+  /**
+   * What the reader would rather a story believed, as they typed it — an
+   * ISO 8601 time for `dateTime`, `"lat, lon"` or a place's name for
+   * `location` — answered whenever the real value is missing. `undefined`
+   * takes it away. A time typed without an offset is read at
+   * `localOffsetMinutes`, this machine's own on that date unless given. One
+   * that does not read is a `stand-in` refusal, and the one before stays.
+   */
+  setStandIn(kind: PermissionKind, typed?: string, localOffsetMinutes?: number): void {
+    const offset = localOffsetMinutes ?? (typed === undefined ? 0 : localOffsetFor(typed));
+    this.#call((raw) => raw.setStandIn(toWitPermission(kind), typed, offset));
+  }
+
+  /**
+   * Reads on in another language. The passage or the prompt showing is
+   * shown again in it — a prompt's labels, placeholders and options
+   * reworded, its field names and option ids kept — and a countdown keeps
+   * running: it is the same visit.
+   */
   setLocale(locale: string): Effect[] {
     return this.#verb((raw) => raw.setLocale(locale));
   }
@@ -401,6 +531,23 @@ function options(campaign: Campaign, given: SessionOptions): wit.SessionOptions 
     untranslated: given.untranslated ?? 'report',
     trace: given.trace ?? false,
     tracePayloads: given.tracePayloads ?? false,
+  };
+}
+
+function witPosition(fix: Position): wit.Position {
+  return {
+    ...(fix.label === undefined ? {} : { label: fix.label }),
+    ...(fix.latitude === undefined ? {} : { latitude: fix.latitude }),
+    ...(fix.longitude === undefined ? {} : { longitude: fix.longitude }),
+    ...(fix.accuracy === undefined ? {} : { accuracy: fix.accuracy }),
+    ...(fix.when === undefined
+      ? {}
+      : {
+          when: {
+            utcMs: BigInt(Math.trunc(fix.when.utcMs)),
+            offsetMinutes: fix.when.offsetMinutes,
+          },
+        }),
   };
 }
 

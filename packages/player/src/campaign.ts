@@ -68,6 +68,13 @@ export interface CampaignManifest {
   }[];
   /** What the campaign needs of an engine: `python` when it runs scripts. */
   readonly needs: readonly string[];
+  /**
+   * What the story reads of the world outside it — `dateTime`, `location` —
+   * derived by the compiler. A session asks about each before it begins,
+   * unless the host has answered already. A string rather than a
+   * `PermissionKind`, because the list is open for appending.
+   */
+  readonly permissions: readonly string[];
 }
 
 /** A file of the bundle, as `fromFiles` takes it. */
@@ -329,5 +336,6 @@ function toManifest(
       default: fromArena(cvar.default),
     })),
     needs: raw.needs,
+    permissions: raw.permissions,
   };
 }
