@@ -3,8 +3,9 @@
 How a campaign's soundscapes reach a speaker, for anybody writing one: a game
 engine's audio, Howler, a native bridge, or a page that wants to play them
 its own way. `@ripplefx/soundscape` is one implementation; this is what any
-other has to do. It binds **Ripple Effect contract 1.5**, and transcribes the
-engine's `host-audio-system.md` §9, the source of truth, in its terms here.
+other has to do. It binds **Ripple Effect contract 1.6**, unchanged here since
+1.5, and transcribes the engine's `host-audio-system.md` §9, the source of
+truth, in its terms here.
 
 ## Three layers, and the one you write
 

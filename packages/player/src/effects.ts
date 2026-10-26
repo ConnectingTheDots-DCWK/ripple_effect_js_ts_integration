@@ -16,6 +16,14 @@ import { fromArena, type RippleValue } from './values.js';
 export type Effect =
   | { readonly kind: 'show'; readonly passage: Passage }
   | { readonly kind: 'ask'; readonly prompt: Prompt }
+  /**
+   * The story has not begun: it reads these of the world outside it, and
+   * nobody has answered. Answer each with `permit`; the answer to the last
+   * begins the story (`campaign-host-api.md` §7a).
+   */
+  | { readonly kind: 'permit'; readonly kinds: readonly PermissionKind[] }
+  /** A read of the world outside the story did not get the real value. Not a turn. */
+  | { readonly kind: 'notice'; readonly notice: Notice }
   | { readonly kind: 'hold'; readonly ms: number }
   | { readonly kind: 'ended'; readonly title?: string; readonly ranOut: boolean }
   /** The story stopped on an error. `message` is the engine's English, for showing and never for parsing. */
@@ -40,8 +48,71 @@ export type CallbackKind = session.CallbackKind;
 /** The effects that say where the story now is — always the last of a batch. */
 export type Turn = Extract<
   Effect,
-  { kind: 'show' | 'ask' | 'hold' | 'ended' | 'failed' | 'stopped' }
+  { kind: 'show' | 'ask' | 'permit' | 'hold' | 'ended' | 'failed' | 'stopped' }
 >;
+
+/**
+ * What a story may read of the world outside it, as the host API and the
+ * manifest's `permissions` spell it — `dateTime`, not the WIT world's
+ * `date-time`. The microphone is not one.
+ */
+export type PermissionKind = 'dateTime' | 'location';
+
+// Tables both ways, as for the callbacks below, so a kind the world adds
+// fails the typecheck here.
+const PERMISSION_KINDS: Record<session.PermissionKind, PermissionKind> = {
+  'date-time': 'dateTime',
+  location: 'location',
+};
+const WIT_PERMISSION_KINDS: Record<PermissionKind, session.PermissionKind> = {
+  dateTime: 'date-time',
+  location: 'location',
+};
+
+/** A kind as the WIT world spells it, for a call into the engine. */
+export function toWitPermission(kind: PermissionKind): session.PermissionKind {
+  const wit = WIT_PERMISSION_KINDS[kind];
+  if (wit === undefined) throw new TypeError(`${String(kind)} is not a kind a story may ask for`);
+  return wit;
+}
+
+export function fromWitPermission(kind: session.PermissionKind): PermissionKind {
+  return PERMISSION_KINDS[kind];
+}
+
+/**
+ * A read of the clock or the position that did not get the real value. Said
+ * once per kind and outcome in a playthrough, before the turn of the read.
+ */
+export interface Notice {
+  /**
+   * The playthrough code, its letter the severity: `I.RT.05` a stand-in
+   * answered, `W.RT.06` the read was refused, `I.RT.07` the host had
+   * nothing to give.
+   */
+  readonly code: string;
+  readonly kind: PermissionKind;
+  /** The node whose read it was. */
+  readonly node?: string;
+  /** The engine's English sentence, for showing and never for parsing. */
+  readonly message: string;
+}
+
+/**
+ * A passage's countdown — `campaign-host-api.md` §4b. The engine keeps no
+ * time for it: a host waits `afterMs`, says `beginCountdown`, waits
+ * `timeoutMs` and says `expire`. A `Player` does all of that itself.
+ */
+export interface ChoiceTimer {
+  /** How long before the countdown begins, in ms; zero is at once. */
+  readonly afterMs: number;
+  /** How long it runs once begun, in ms; never zero. */
+  readonly timeoutMs: number;
+  /** Whether the author meant the reader to see it count. */
+  readonly visible: boolean;
+  /** The index into `choices` taken when it runs out. */
+  readonly default: number;
+}
 
 export interface Choice {
   readonly port: string;
@@ -71,12 +142,41 @@ export interface Passage {
   readonly soundscape?: Soundscape;
   /** The passage asks for silence. */
   readonly silence: boolean;
+  /** The passage's countdown; absent for one that waits for ever. */
+  readonly timer?: ChoiceTimer;
 }
 
 export interface PromptField {
+  /** What an answer is keyed by: an ID, the same in every language. */
   readonly name: string;
   readonly type: string;
+  /** What the control is filled in with — the answer if nobody edits it. Not a placeholder. */
   readonly default: RippleValue;
+  /** What the reader is shown, in the language being read: `name` where the author wrote nothing. */
+  readonly label: string;
+  /** The hint drawn while the field is empty; empty for none. Never the answer. */
+  readonly placeholder: string;
+  /**
+   * Whether the reader may leave it empty, which answers `null`. A field
+   * that is not optional is required: a host does not submit it empty.
+   */
+  readonly optional: boolean;
+  /**
+   * The fixed answers to pick from, in order: one pick for a scalar type,
+   * any number for a `…List`. Empty for a field the reader types into.
+   * Answered with the picked options' `id`s, never their labels or values.
+   */
+  readonly options: readonly PromptOption[];
+}
+
+/** One fixed answer a prompt field offers. */
+export interface PromptOption {
+  /** What a host answers with; the same in every language. */
+  readonly id: string;
+  /** What the reader is shown, in the language being read. */
+  readonly label: string;
+  /** What the story is handed, of the field's type. */
+  readonly value: RippleValue;
 }
 
 export interface Prompt {
@@ -186,7 +286,9 @@ export type CallbackEventName =
   | 'machine.state.entered'
   | 'node.entered'
   | 'node.exited'
-  | 'node.failed';
+  | 'node.failed'
+  | 'countdown.started'
+  | 'countdown.expired';
 
 // A table rather than a rewrite of the dashes, so a member the world adds
 // fails the typecheck here instead of arriving spelled however it happens to.
@@ -209,6 +311,8 @@ const CALLBACK_EVENTS: Record<session.CallbackKind, CallbackEventName> = {
   'node-entered': 'node.entered',
   'node-exited': 'node.exited',
   'node-failed': 'node.failed',
+  'countdown-started': 'countdown.started',
+  'countdown-expired': 'countdown.expired',
 };
 
 /**
@@ -250,6 +354,10 @@ export function toEffect(raw: session.Effect, media: MediaResolver): Effect {
       return { kind: 'show', passage: toPassage(raw.val, media) };
     case 'ask':
       return { kind: 'ask', prompt: toPrompt(raw.val) };
+    case 'permit':
+      return { kind: 'permit', kinds: raw.val.map(fromWitPermission) };
+    case 'notice':
+      return { kind: 'notice', notice: toNotice(raw.val) };
     case 'hold':
       return { kind: 'hold', ms: Number(raw.val) };
     case 'ended':
@@ -292,6 +400,16 @@ export function toPassage(raw: campaign.Passage, media: MediaResolver): Passage 
     silence: raw.silence,
     ...optional('untranslated', raw.untranslated),
     ...optional('soundscape', raw.soundscape && toSoundscape(raw.soundscape)),
+    ...optional('timer', raw.timer && toTimer(raw.timer)),
+  };
+}
+
+function toTimer(raw: campaign.ChoiceTimer): ChoiceTimer {
+  return {
+    afterMs: Number(raw.afterMs),
+    timeoutMs: Number(raw.timeoutMs),
+    visible: raw.visible,
+    default: raw.default,
   };
 }
 
@@ -303,7 +421,24 @@ export function toPrompt(raw: campaign.Prompt): Prompt {
       name: field.name,
       type: field.type,
       default: fromArena(field.default),
+      label: field.label,
+      placeholder: field.placeholder,
+      optional: field.optional,
+      options: field.options.map((option) => ({
+        id: option.id,
+        label: option.label,
+        value: fromArena(option.value),
+      })),
     })),
+  };
+}
+
+function toNotice(raw: session.Notice): Notice {
+  return {
+    code: raw.code,
+    kind: fromWitPermission(raw.kind),
+    message: raw.message,
+    ...optional('node', raw.node),
   };
 }
 

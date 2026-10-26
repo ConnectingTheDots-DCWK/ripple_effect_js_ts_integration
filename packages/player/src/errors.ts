@@ -6,6 +6,7 @@
 // the sentence has `message`, and one that wants to act has `failure`.
 import type * as bundle from '../generated/no-python/interfaces/ripple-engine-bundle.js';
 import type * as session from '../generated/no-python/interfaces/ripple-engine-session.js';
+import { fromWitPermission, type PermissionKind } from './effects.js';
 
 /** Every error this package throws. */
 export class RippleError extends Error {
@@ -32,10 +33,12 @@ export class BundleError extends RippleError {
 }
 
 /**
- * Why a verb was refused. `wrong-turn`, `no-such-choice`, `nothing-asked` and
- * `stopped` are a host's bugs; `choice-spent` (a choice drawn as unavailable,
- * pressed anyway) and `unknown-locale` (a language the campaign was not
- * written in) are conditions a host meets in use, and handles.
+ * Why a verb was refused. `wrong-turn`, `no-such-choice`, `nothing-asked`,
+ * `stopped`, `no-countdown`, `countdown-not-begun` and `not-permitted` are a
+ * host's bugs; `choice-spent` (a choice drawn as unavailable, pressed
+ * anyway), `unknown-locale` (a language the campaign was not written in) and
+ * `stand-in` (what a reader typed does not read as a time or a place) are
+ * conditions a host meets in use, and handles.
  */
 export type HostFailure =
   | {
@@ -47,7 +50,15 @@ export type HostFailure =
   | { readonly kind: 'choice-spent'; readonly port: string }
   | { readonly kind: 'stopped' }
   | { readonly kind: 'nothing-asked' }
-  | { readonly kind: 'unknown-locale'; readonly locale: string };
+  | { readonly kind: 'unknown-locale'; readonly locale: string }
+  /** A position handed in for a kind the reader has said no to. */
+  | { readonly kind: 'not-permitted'; readonly permission: PermissionKind }
+  /** A stand-in that does not read as one, and the engine's English why. */
+  | { readonly kind: 'stand-in'; readonly permission: PermissionKind; readonly reason: string }
+  /** `beginCountdown` or `expire` on a passage with no countdown. */
+  | { readonly kind: 'no-countdown' }
+  /** `expire` before `beginCountdown`. */
+  | { readonly kind: 'countdown-not-begun' };
 
 /**
  * The session refused a verb, and nothing moved: the story is where it was.
@@ -146,6 +157,18 @@ export function hostFailure(raw: session.HostFailure): HostFailure {
       return { kind: 'nothing-asked' };
     case 'unknown-locale':
       return { kind: 'unknown-locale', locale: raw.val };
+    case 'not-permitted':
+      return { kind: 'not-permitted', permission: fromWitPermission(raw.val) };
+    case 'stand-in':
+      return {
+        kind: 'stand-in',
+        permission: fromWitPermission(raw.val.kind),
+        reason: raw.val.reason,
+      };
+    case 'no-countdown':
+      return { kind: 'no-countdown' };
+    case 'countdown-not-begun':
+      return { kind: 'countdown-not-begun' };
   }
 }
 
@@ -174,5 +197,13 @@ function describeHostFailure(failure: HostFailure): string {
       return 'the story is not waiting for anything';
     case 'unknown-locale':
       return `the campaign has no language ${failure.locale}`;
+    case 'not-permitted':
+      return `the reader has not allowed ${failure.permission}`;
+    case 'stand-in':
+      return `the stand-in for ${failure.permission} does not read: ${failure.reason}`;
+    case 'no-countdown':
+      return 'the passage showing has no countdown';
+    case 'countdown-not-begun':
+      return 'the countdown ran out before it began';
   }
 }

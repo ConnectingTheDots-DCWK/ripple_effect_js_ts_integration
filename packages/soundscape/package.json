@@ -1,6 +1,6 @@
 {
   "name": "@ripplefx/soundscape",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "description": "Play a Ripple Effect campaign's soundscapes in a browser, with Web Audio: the speaker for @ripplefx/player.",
   "type": "module",
   "license": "MIT",
@@ -39,7 +39,7 @@
     "prepack": "pnpm build"
   },
   "peerDependencies": {
-    "@ripplefx/player": "1.5.x"
+    "@ripplefx/player": "1.6.x"
   },
   "devDependencies": {
     "@ripplefx/player": "workspace:*",

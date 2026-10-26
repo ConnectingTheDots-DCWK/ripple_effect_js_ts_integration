@@ -1,6 +1,6 @@
 {
   "name": "@ripplefx/player",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "description": "Play Ripple Effect campaigns in a browser or in Node: the engine as a WebAssembly component, and a TypeScript API over it.",
   "type": "module",
   "license": "SEE LICENSE IN LICENSE",

@@ -23,7 +23,9 @@ const player = new Player(campaign.session({ seed: Date.now() }), {
     switch (effect.kind) {
       case 'show': // a passage: render effect.passage.text, offer its choices
         break;
-      case 'ask': // a prompt: effect.prompt.fields
+      case 'ask': // a form: effect.prompt.fields, each with its label and any options
+        break;
+      case 'permit': // before it begins, the story asks to read effect.kinds
         break;
       case 'ended': // the story is over, as the author wrote it
         break;
@@ -31,7 +33,7 @@ const player = new Player(campaign.session({ seed: Date.now() }), {
         break;
       case 'stopped': // the session ended: after stop(), or pause()
         break;
-      // …and 'hold', 'audio', 'ambience', 'changed', 'jumped', 'callback', 'trace'
+      // …and 'hold', 'notice', 'audio', 'ambience', 'changed', 'jumped', 'callback', 'trace'
     }
   },
   // Without this, a failure after a hold is an uncaught exception.
@@ -54,7 +56,8 @@ For sound, give the `Player` a `SoundscapeDriver` as `audio` (below).
 
 - **It plays the story**: every rule of a campaign runs in the engine. You get
   an ordered list of *effects* for each thing the reader does, and the last
-  one says where the story is now: a passage, a prompt, a wait or an ending.
+  one says where the story is now: a passage, a prompt, a question before it
+  begins, a wait or an ending.
 - **It loads what it needs.** `Campaign.load` fetches `campaign.json` and the
   documents it names, and loads the engine **with Python only when the
   campaign uses it** (its `needs`): about 1.36 MB over the wire with Python,
@@ -64,6 +67,9 @@ For sound, give the `Player` a `SoundscapeDriver` as `audio` (below).
   what it produces**. Pictures keep the author's own links;
   `resolveLink(passage, src)` turns one into the file's URL, so hand it to
   your renderer's image hook.
+- **It keeps time for you, and reads no clock of its own.** A `Player`
+  waits out a `hold` and runs a passage's countdown, and hands the story
+  the time only once the reader has allowed it.
 - **It schedules sound, and plays none.** `SoundscapeDriver` drives the
   engine's scheduler and hands each voice to a `Speaker`: give a `Player` one
   as `audio` and the story's sound follows the story.
@@ -92,8 +98,10 @@ For sound, give the `Player` a `SoundscapeDriver` as `audio` (below).
 | `campaign.session(start?)` | A `Session`: `seed`, `locale`, `board`, budgets. Leave out `seed` and it is zero, and every reader rolls the same dice. |
 | `Session.resume(campaign, save, start?)` | Pick up a save that `pause()` or `checkpoint()` wrote. |
 | `session.start() / choose(i) / answer(values) / elapsed() / setLocale(l) / restart() / stop()` | The verbs. Each returns `Effect[]` and runs synchronously. `choose()` and `answer()` with nothing are the reader leaving. |
+| `session.beginCountdown() / expire()` | A passage's countdown, for a host that keeps its time (below). |
+| `session.permit(kind, granted) / setNow(moment?) / setPosition(fix?) / setStandIn(kind, typed?)` | What a story may read of the world, and what it is handed (below). |
 | `session.pause()`, `session.checkpoint()` | A save to resume from: `pause()` answers `{ save?, effects }` and ends the session, `checkpoint()` a `string` and goes on. Either has none unless the story is on a passage or a prompt. |
-| `new Player(session, { onEffect, onError?, audio? })` | The loop over a session: delivers every effect and waits out a `hold` for you. Its own `pause()` answers the save. A verb called on `player.session` goes round it. |
+| `new Player(session, { onEffect, onError?, audio?, now?, countdowns?, onCountdown? })` | The loop over a session: delivers every effect, waits out a `hold` and runs a countdown for you. Its own `pause()` answers the save, and its `permit`, `setStandIn` and `setPosition` are the session's. A verb called on `player.session` goes round it. |
 | `player.onCallback(name, fn)`, `onAnyCallback(fn)`, `clearCallbacks()`, `callbackMisses` | The table for the author's named callbacks. |
 | `session.cvars / entities / memory / guard` | The story's state, each a snapshot as of the last verb. |
 | `session.consoleFeed(code)`, `player.consoleFeed(code)` | One line of Python against the live story, for a debugging console. |
@@ -107,11 +115,89 @@ they are to the engine. Maps keep their order as `Map`s.
 **Errors** are classes: `BundleError` (the bundle won't open), `HostError`,
 `ResumeError`, `NeedsPython`, `LoadError` and `EngineTrap`. A `HostError` is a
 verb the session refused, and nothing moved; `failure.kind` says why. Most
-kinds are a bug in the host — a verb out of turn — but `choice-spent` (an
-unavailable choice pressed) and `unknown-locale` (a language the campaign
-lacks) are met in use and handled. A trap means the engine panicked: that
+kinds are a bug in the host — a verb out of turn, a countdown run out before
+it began — but `choice-spent` (an unavailable choice pressed),
+`unknown-locale` (a language the campaign lacks) and `stand-in` (what a
+reader typed is not a time or a place) are met in use and handled. A trap means the engine panicked: that
 campaign is unusable from then on, so load it again and resume your last
 save. Every message is English, for a log; branch on the fields.
+
+## Forms
+
+A prompt's fields are keyed by `name`, and drawn with `label`, in the
+language being read. A field's `default` is what its control starts filled
+in with, and the answer if nobody touches it; `placeholder` is only a hint.
+
+- **A field is required unless it is `optional`.** Don't submit a required
+  one empty: keep the form open and say which field wants an answer. Leave an
+  optional one out, or send `null`, and the story is told it was skipped. A
+  true-or-false that may be left empty needs a third state.
+- **A field with `options` is a pick.** One for a scalar type, any number
+  for a `…List`; answer with the picked options' `id`s, never their labels:
+
+  ```ts
+  player.answer({ calling: 'wizard', companions: ['pair'] });
+  ```
+
+- **A change of language rewords a form in place**: `setLocale` answers the
+  same prompt again with new labels, and the same names and ids.
+
+## Countdowns
+
+A passage may wait only so long: `passage.timer` says how long before its
+countdown begins (`afterMs`), how long it runs (`timeoutMs`), whether the
+author meant it seen (`visible`) and which choice it takes (`default`). The
+engine keeps no time. A `Player` does: it says `beginCountdown` and then
+`expire` when the time comes, drops both waits when the story moves — and
+not for a verb the session refused, which moved nothing — and tells
+`onCountdown` where it stands, `undefined` once it is gone:
+
+```ts
+const player = new Player(session, {
+  onEffect,
+  onCountdown(countdown) {
+    if (countdown?.begun && countdown.timer.visible) drawBar(countdown.timer.timeoutMs);
+    else hideBar();
+  },
+});
+```
+
+A change of language keeps the countdown running: it is the same visit.
+**`countdowns: false` turns them off**, for a test or a walk through every
+branch, where a countdown would only ever take the default, and for a
+reader who asked for no time limits (WCAG 2.2.1). The host calls
+`beginCountdown` and `expire` itself then, where it means them.
+
+## The clock and the place
+
+A story may read the date and time, or where the reader is, and **asks
+first**. A campaign whose `manifest.permissions` names a kind with no answer
+begins on `{ kind: 'permit', kinds }`, and nothing else happens until each is
+answered:
+
+```ts
+player.permit('dateTime', true);
+player.permit('location', false); // the last answer begins the story
+```
+
+Until the last answer, `player.turn` is that turn less the kinds answered,
+so a host drawing from it asks only what is left. A host that already knows
+its answers gives them before `start`, and the reader is never asked. A save carries none, so answer a resumed session
+again.
+
+- **The clock is the `Player`'s `now`**, `momentOf()` unless you pass your
+  own, stamped on every verb once `dateTime` is allowed, and never before.
+  On a bare `Session`, call `setNow(momentOf())` before each verb yourself.
+- **A position is pushed**, with `setPosition({ latitude, longitude,
+  accuracy, when })`, and refused once the reader has said no. To ask the
+  browser on a yes, fetch the fix first and hand it over *before* the
+  `permit` that says yes, or the first page reads nothing.
+- **A reader who says no may give a stand-in**, `setStandIn('dateTime',
+  '2026-10-31 23:00')` or `setStandIn('location', 'Rome')`, which the story
+  is told whenever the real value is missing.
+- **A read that did not get the real value says so**, as `{ kind: 'notice',
+  notice }`, once per kind and outcome: `I.RT.05` a stand-in, `W.RT.06`
+  refused, `I.RT.07` nothing to give.
 
 ## Named callbacks
 

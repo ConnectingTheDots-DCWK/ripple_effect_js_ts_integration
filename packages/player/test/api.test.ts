@@ -4,10 +4,12 @@
 import { readFile } from 'node:fs/promises';
 import { createServer, type Server } from 'node:http';
 import { join, normalize } from 'node:path';
-import { afterAll, beforeAll, describe, expect, test } from 'vitest';
+import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest';
 import {
   BundleError,
+  type CallbackEvent,
   Campaign,
+  type Countdown,
   type Effect,
   EngineTrap,
   encodePath,
@@ -271,6 +273,25 @@ describe('the player', () => {
     expect(seen.some((effect) => effect.kind === 'stopped')).toBe(false);
     expect(player.pause()).toBeDefined();
   });
+
+  test('a change of language, a refusal or a pause that stops nothing leaves a wait running', async () => {
+    vi.useFakeTimers();
+    try {
+      const campaign = await Campaign.fromFiles(bundleFiles('the-hourglass'), { python: false });
+      const player = new Player(campaign.session(), { onEffect: () => {} });
+      player.start();
+      player.choose(0);
+      expect(player.turn).toEqual({ kind: 'hold', ms: 1500 });
+      player.setLocale('en-US');
+      // None of these moves the story, so none of them may stop its clock.
+      expect(() => player.choose(0)).toThrow(HostError);
+      expect(player.pause()).toBeUndefined();
+      vi.advanceTimersByTime(1500);
+      expect(player.turn).toMatchObject({ kind: 'show', passage: { node: 'narration_4' } });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe('the console and the guard', () => {
@@ -297,5 +318,153 @@ describe('the console and the guard', () => {
     // A Float that happens to be whole still prints as a Float.
     expect(campaign.asText(7)).not.toBe(campaign.asText(7n));
     expect(campaign.describeCvarRefusal('gold', 'int', 'lots')).toContain('gold');
+  });
+});
+
+// What a host must catch, as `failure.kind`: one call each, on one session
+// apiece, because a refusal moves nothing.
+function refusal(verb: () => unknown): unknown {
+  try {
+    verb();
+  } catch (error) {
+    expect(error).toBeInstanceOf(HostError);
+    return (error as HostError).failure;
+  }
+  throw new Error('the verb was not refused');
+}
+
+describe('countdowns', () => {
+  test('the player runs one by its clock, keeps it across a language, and drops it on a move', async () => {
+    vi.useFakeTimers();
+    try {
+      const campaign = await Campaign.fromFiles(bundleFiles('the-hesitation'));
+      const told: (Countdown | undefined)[] = [];
+      const fired: CallbackEvent[] = [];
+      const player = new Player(campaign.session(), {
+        onEffect: () => {},
+        onCountdown: (countdown) => told.push(countdown),
+      });
+      player.onAnyCallback((event) => fired.push(event));
+      player.start();
+      const timer = { afterMs: 2000, timeoutMs: 5000, visible: true, default: 1 };
+      expect(player.countdown).toEqual({ timer, begun: false });
+
+      vi.advanceTimersByTime(1999);
+      expect(player.countdown?.begun).toBe(false);
+      vi.advanceTimersByTime(1);
+      expect(player.countdown).toEqual({ timer, begun: true });
+      expect(fired.map((event) => event.event)).toEqual(['countdown.started']);
+
+      // The same visit in other words: the countdown runs on, and says nothing.
+      player.setLocale('it-IT');
+      expect(told).toHaveLength(2);
+      vi.advanceTimersByTime(5000);
+      expect(fired.at(-1)).toMatchObject({ event: 'countdown.expired', index: 1 });
+      expect(player.turn).toMatchObject({ kind: 'show', passage: { node: 'narration_3' } });
+      // Told it was gone, then the next passage's own.
+      expect(told.slice(2)).toEqual([undefined, expect.objectContaining({ begun: false })]);
+
+      // A move drops the countdown before the story moves, and its timer never fires.
+      const mark = told.length;
+      player.choose(0);
+      expect(told[mark]).toBeUndefined();
+      vi.runAllTimers();
+      expect(fired.filter((event) => event.node === 'narration_3')).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test('a verb the session refuses moves nothing, so the countdown runs on', async () => {
+    vi.useFakeTimers();
+    try {
+      const campaign = await Campaign.fromFiles(bundleFiles('the-hesitation'));
+      const told: (Countdown | undefined)[] = [];
+      const player = new Player(campaign.session(), {
+        onEffect: () => {},
+        onCountdown: (countdown) => told.push(countdown),
+      });
+      player.start();
+      expect(refusal(() => player.choose(99))).toMatchObject({ kind: 'no-such-choice' });
+      expect(player.countdown?.begun).toBe(false);
+      expect(told).toHaveLength(1);
+      vi.advanceTimersByTime(7000);
+      expect(player.turn).toMatchObject({ kind: 'show', passage: { node: 'narration_3' } });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test('a countdown out of order is refused, and one where there is none', async () => {
+    const timed = (await Campaign.fromFiles(bundleFiles('the-hesitation'))).session();
+    timed.start();
+    expect(refusal(() => timed.expire())).toEqual({ kind: 'countdown-not-begun' });
+    const plain = (
+      await Campaign.fromFiles(bundleFiles('the-abacus'), { python: false })
+    ).session();
+    plain.start();
+    expect(refusal(() => plain.beginCountdown())).toEqual({ kind: 'no-countdown' });
+  });
+});
+
+describe('permissions', () => {
+  test('a story that reads the world asks first, and the clock is stamped only once allowed', async () => {
+    const campaign = await Campaign.fromFiles(bundleFiles('the-weathervane'));
+    expect(campaign.manifest.permissions).toEqual(['dateTime', 'location']);
+    let read = 0;
+    const seen: Effect[] = [];
+    const player = new Player(campaign.session(), {
+      onEffect: (effect) => seen.push(effect),
+      now: () => {
+        read++;
+        return { utcMs: Date.UTC(2026, 9, 19, 16, 30), offsetMinutes: 120 };
+      },
+    });
+    player.start();
+    expect(seen.at(-1)).toEqual({ kind: 'permit', kinds: ['dateTime', 'location'] });
+    player.permit('location', false);
+    expect(read).toBe(0);
+    // Nothing is delivered for an answer that leaves a kind unanswered, and
+    // the turn is what is still asked.
+    expect(player.turn).toEqual({ kind: 'permit', kinds: ['dateTime'] });
+    expect(refusal(() => player.setPosition({ latitude: 41.9, longitude: 12.5 }))).toEqual({
+      kind: 'not-permitted',
+      permission: 'location',
+    });
+    expect(refusal(() => player.setStandIn('dateTime', 'teatime'))).toMatchObject({
+      kind: 'stand-in',
+      permission: 'dateTime',
+    });
+
+    player.permit('dateTime', true);
+    expect(read).toBeGreaterThan(0);
+    expect(player.turn).toMatchObject({
+      kind: 'show',
+      passage: { text: expect.stringContaining('2026-10-19T18:30:00+02:00') },
+    });
+    player.choose(0);
+    const notice = seen.find((effect) => effect.kind === 'notice');
+    expect(notice).toMatchObject({ notice: { code: 'W.RT.06', kind: 'location' } });
+  });
+});
+
+describe('forms', () => {
+  test('a field carries its words in the language being read, and its options their ids', async () => {
+    const campaign = await Campaign.fromFiles(bundleFiles('the-chosen'));
+    const session = campaign.session();
+    const english = session.start().at(-1);
+    const italian = session.setLocale('it-IT').at(-1);
+    if (english?.kind !== 'ask' || italian?.kind !== 'ask') throw new Error('no form');
+    const [calling, companions] = english.prompt.fields;
+    expect(calling).toMatchObject({ name: 'calling', optional: false });
+    expect(companions).toMatchObject({ name: 'companions', optional: true });
+    expect(typeof calling?.placeholder).toBe('string');
+    const ids = (fields: typeof english.prompt.fields) =>
+      fields.map((field) => field.options.map((option) => option.id));
+    expect(ids(italian.prompt.fields)).toEqual(ids(english.prompt.fields));
+    expect(italian.prompt.fields.map((field) => field.name)).toEqual(['calling', 'companions']);
+    expect(italian.prompt.fields[0]?.label).not.toBe(calling?.label);
+    expect(italian.prompt.fields[0]?.options[0]?.label).not.toBe(calling?.options[0]?.label);
+    expect(companions?.options.map((option) => typeof option.value)).not.toContain('string');
   });
 });

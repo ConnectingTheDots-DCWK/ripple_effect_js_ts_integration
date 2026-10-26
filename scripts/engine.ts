@@ -44,14 +44,16 @@ rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
 
 if (tree) {
-  fromTree(tree);
+  console.log(`engine ${fromTree(tree)}, unreleased, is in engine/`);
 } else {
   await fromRelease();
+  console.log(`engine ${pin.engine} is in engine/`);
 }
-console.log(`engine ${pin.engine} is in engine/`);
 
-function fromTree(tree: string): void {
+/** Answers the engine version the tree is at. */
+function fromTree(tree: string): string {
   console.warn(`engine: taking the components ${tree} built — UNVERIFIED, for development only.`);
+  const version = treeVersion(tree);
   for (const variant of variants) {
     const component = join(tree, 'target', 'wasm', variant, 'ripple_engine.wasm');
     if (!existsSync(component)) {
@@ -65,7 +67,7 @@ function fromTree(tree: string): void {
     'bash',
     [
       join(tree, 'tool', 'engine_notice.sh'),
-      pin.engine,
+      version,
       'wasm32-component',
       'python and no-python',
       'from a development tree, unreleased',
@@ -80,7 +82,18 @@ function fromTree(tree: string): void {
     { recursive: true },
   );
   cpSync(join(tree, 'tool', 'conformance', 'FORMAT.md'), join(out, 'conformance', 'FORMAT.md'));
-  writeFileSync(join(out, 'UNVERIFIED'), `taken from ${tree}\n`);
+  writeFileSync(join(out, 'UNVERIFIED'), `engine ${version}, taken from ${tree}\n`);
+  return version;
+}
+
+// The engine's version in a checkout: its workspace's, which every crate
+// takes. A tree opens the next contract before anything pins it, so this is
+// what the notice names rather than engine.json's.
+function treeVersion(tree: string): string {
+  const manifest = readFileSync(join(tree, 'Cargo.toml'), 'utf8');
+  const version = /^\[workspace\.package\][^[]*?^version\s*=\s*"([^"]+)"/ms.exec(manifest)?.[1];
+  if (!version) fail(`${tree}/Cargo.toml names no workspace version`);
+  return version;
 }
 
 async function fromRelease(): Promise<void> {
