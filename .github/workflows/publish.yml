@@ -7,9 +7,9 @@
 # one already tagged; takes the release notes from its CHANGELOG's
 # `## <version>` section and refuses a version without one; fetches the
 # engine engine.json pins — refusing an unverified one — and runs the whole
-# check; then tags `<package>-v<version>`, cuts the GitHub release, and
-# publishes. The tag carries the package's name because the two packages
-# count their PATCH apart.
+# check; then publishes, and only once npm has taken it tags
+# `<package>-v<version>` and cuts the GitHub release. The tag carries the
+# package's name because the two packages count their PATCH apart.
 #
 # npm must know this workflow first: on npmjs.com, the package's Settings →
 # Trusted publishing → GitHub Actions, this repository, `publish.yml`. A
@@ -103,6 +103,13 @@ jobs:
             grep -q '^package/ENGINE-NOTICE$' "$RUNNER_TEMP/files.txt" || { echo "::error::ENGINE-NOTICE is not in the package"; exit 1; }
           fi
 
+      # Before the tag: a refused publish then leaves nothing behind, and the
+      # run can be dispatched again, where a tag would trip the refusal above.
+      # Should the tag or the release fail after npm has taken the version,
+      # make them by hand: npm never takes the same version twice.
+      - name: Publish
+        run: npm publish "$RUNNER_TEMP/package.tgz" --provenance --access public
+
       - name: Tag and release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -118,6 +125,3 @@ jobs:
           case "$VERSION" in *-*) prerelease=(--prerelease) ;; esac
           gh release create "$TAG" --verify-tag "${prerelease[@]}" \
             --title "$NAME $VERSION" --notes-file "$RUNNER_TEMP/notes.md"
-
-      - name: Publish
-        run: npm publish "$RUNNER_TEMP/package.tgz" --provenance --access public
