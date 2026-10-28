@@ -1,6 +1,6 @@
 {
   "$comment": "The engine release these bindings carry. `pnpm engine` downloads it, verifies the manifest's signature against engine-signing.pub and every digest against both the manifest and this file, and unpacks it into engine/. `RIPPLE_ENGINE_TREE=<a ripple_effect checkout> pnpm engine` takes the components that checkout built instead, unverified, to play an unreleased engine.",
-  "engine": "1.6.0",
+  "engine": "1.6.1",
   "contract": "1.6",
   "keyId": "0f6fb4654dbef4b7",
   "urls": [
@@ -9,16 +9,16 @@
   ],
   "archives": {
     "python": {
-      "file": "ripple-engine-1.6.0-wasm32-component.tar.gz",
-      "sha256": "394d8bb8118b6f64620712a7f5dc26212cada792222dc6c46a5d63fdc93252a7"
+      "file": "ripple-engine-1.6.1-wasm32-component.tar.gz",
+      "sha256": "aaef06ebbf8640a050157f8a812ef617d8379bf8a136f723e871a04aa82a0a2a"
     },
     "no-python": {
-      "file": "ripple-engine-1.6.0-no-python-wasm32-component.tar.gz",
-      "sha256": "9cb3a7b953d050aa127c2414d0ad6cb4bb683a00b9d2fb0443f76c503d4d5a08"
+      "file": "ripple-engine-1.6.1-no-python-wasm32-component.tar.gz",
+      "sha256": "51339edca66722ac03d63ecab2a5262b24426424e9bf2f257fee4cefa027a320"
     },
     "conformance": {
-      "file": "ripple-conformance-1.6.0.tar.gz",
-      "sha256": "146faa21cc3ec21daeb3b4708b8996aa5e323d90d114b36d406736d1812f92c0"
+      "file": "ripple-conformance-1.6.1.tar.gz",
+      "sha256": "6d56adc7622d11bb51dabce0c968a58e6fed74c55d0755feb2b95c398075e653"
     }
   }
 }
