@@ -5,9 +5,10 @@ package's own.
 
 ## 1.6.0
 
-- **The engine of contract 1.6**, Grammar Lich: the world
+- **The engine of contract 1.6**, Grammar Lich, at 1.6.1: the world
   `ripple:engine@1.6.0`, bundle format 16. It also carries engine 1.5.1 to
-  1.5.4, none of which changed the web component's surface.
+  1.5.4, and none of them, 1.6.1 included, changed the web component's
+  surface.
 - **A story may ask before it reads the clock or the reader's position.**
   A campaign whose `manifest.permissions` names a kind nobody has answered
   begins on a `permit` effect, a turn, and nothing else; `Session.permit`
