@@ -43,15 +43,17 @@ jobs:
           echo "::error::Publish from main."
           exit 1
 
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
         with:
           # Trusted publishing needs npm 11.5.1 or newer, which Node 24 carries:
           # the one place this repository runs a Node other than mise.toml's.
           node-version: 24
           cache: pnpm
-          registry-url: https://registry.npmjs.org
+          # No `registry-url`: npmjs is npm's default, and setting it writes an
+          # `.npmrc` that reads NODE_AUTH_TOKEN, which trusted publishing never
+          # sets — setup-node v7 stopped filling it with a placeholder.
 
       - name: Read the package's name and version
         id: package
